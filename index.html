@@ -4,931 +4,746 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LWX — The Luxury Watch Index</title>
+  <meta name="description" content="A systematic, rules-based measure of secondary market price performance across ten of the most liquid and widely traded luxury watch references. Prices sourced weekly from Chrono24.">
+  <meta name="theme-color" content="#0a101d">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@300;400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,400..600&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script>
+    // Opt in to entrance motion before first paint, so nothing flashes in its final state first.
+    if (!matchMedia('(prefers-reduced-motion: reduce)').matches && 'IntersectionObserver' in window) {
+      document.documentElement.classList.add('motion');
+    }
+  </script>
   <style>
     :root {
-      --bg:          #07090e;
-      --bg1:         #0b0f18;
-      --bg2:         #0f1520;
-      --bg3:         #141c28;
-      --bg4:         #1a2332;
-      --border:      #1c2d40;
-      --border2:     #243648;
-      --orange:      #f5a200;
-      --orange2:     #ffbb33;
-      --orange-dim:  rgba(245,162,0,0.10);
-      --orange-glow: rgba(245,162,0,0.04);
-      --text:        #c8d8e8;
-      --text2:       #6a82a0;
-      --text3:       #36506a;
-      --green:       #29c47a;
-      --red:         #e84545;
-      --green-dim:   rgba(41,196,122,0.10);
-      --red-dim:     rgba(232,69,69,0.10);
-      --mono:        'Roboto Mono', 'Courier New', monospace;
-      --sans:        'Inter', system-ui, sans-serif;
+      --bg:        oklch(0.175 0.028 262);
+      --bg-2:      oklch(0.205 0.030 262);
+      --bg-3:      oklch(0.235 0.032 262);
+      --line-soft: oklch(0.265 0.028 262);
+      --line:      oklch(0.320 0.030 262);
+      --ink:       oklch(0.955 0.008 85);
+      --ink-2:     oklch(0.800 0.014 255);
+      --ink-3:     oklch(0.670 0.018 255);
+      --ink-4:     oklch(0.520 0.020 255);
+      --gold:      oklch(0.800 0.100 82);
+      --gold-hi:   oklch(0.870 0.090 86);
+      --gold-glow: oklch(0.800 0.100 82 / 0.45);
+      --up:        oklch(0.780 0.130 160);
+      --down:      oklch(0.700 0.150 25);
+
+      --serif: 'Bodoni Moda', 'Bodoni 72', Didot, Georgia, serif;
+      --sans:  'Hanken Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+      --ease-out:  cubic-bezier(0.22, 1, 0.36, 1);
+      --ease-expo: cubic-bezier(0.16, 1, 0.3, 1);
+
+      --radius:   10px;
+      --gutter:   clamp(16px, 4vw, 48px);
+      --max:      1320px;
+      --header-h: 64px;
+      --section-space: clamp(72px, 8.5vw, 120px);
+
+      --z-header:   100;
+      --z-progress: 110;
+      --z-skip:     200;
     }
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html { scroll-behavior: smooth; }
+
+    html {
+      scroll-behavior: smooth;
+      scroll-padding-top: calc(var(--header-h) + 24px);
+      -webkit-text-size-adjust: 100%;
+    }
 
     body {
       background: var(--bg);
-      color: var(--text);
+      color: var(--ink-2);
       font-family: var(--sans);
-      min-height: 100vh;
-      line-height: 1.5;
+      font-size: 1rem;
+      line-height: 1.65;
       -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      overflow-x: clip;
     }
 
-    /* Scanlines */
-    body::before {
-      content: '';
-      position: fixed; inset: 0;
-      background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.04) 3px, rgba(0,0,0,0.04) 4px);
+    a { color: inherit; }
+    :focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; border-radius: 4px; }
+
+    .container { width: min(100% - 2 * var(--gutter), var(--max)); margin-inline: auto; }
+
+    .sr-only {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+    }
+
+    .skip-link {
+      position: fixed; top: 12px; left: 12px; z-index: var(--z-skip);
+      background: var(--gold); color: var(--bg); font-weight: 600; font-size: 14px;
+      padding: 10px 16px; border-radius: 6px; text-decoration: none;
+      transform: translateY(-160%); transition: transform .25s var(--ease-out);
+    }
+    .skip-link:focus-visible { transform: none; }
+
+    .pos { color: var(--up); }
+    .neg { color: var(--down); }
+    .arr { font-size: .72em; margin-right: .3em; position: relative; top: -.08em; }
+    .num { font-variant-numeric: tabular-nums; }
+
+    /* ── SCROLL PROGRESS ─────────────────────────────────────────── */
+    .progress {
+      position: fixed; inset: 0 0 auto 0; height: 2px; z-index: var(--z-progress);
+      background: linear-gradient(90deg, var(--gold), var(--gold-hi));
+      transform-origin: 0 50%; transform: scaleX(0);
       pointer-events: none;
-      z-index: 9999;
     }
 
-    /* ── TICKER ───────────────────────────────────────────────────── */
-    .ticker-wrap {
-      background: var(--bg2);
-      border-bottom: 1px solid var(--border);
-      overflow: hidden;
-      height: 30px;
-      display: flex;
-      align-items: center;
+    /* ── TICKER ──────────────────────────────────────────────────── */
+    .ticker {
+      display: flex; align-items: center; height: 36px;
+      border-bottom: 1px solid var(--line-soft);
+      font-size: 12.5px;
     }
     .ticker-label {
-      flex-shrink: 0;
-      background: var(--orange);
-      color: #000;
-      font-family: var(--mono);
-      font-size: 10px;
-      font-weight: 600;
-      letter-spacing: 1.5px;
-      padding: 0 12px;
-      height: 100%;
-      display: flex;
-      align-items: center;
-      white-space: nowrap;
+      flex-shrink: 0; display: flex; align-items: center; gap: 12px;
+      height: 100%; padding: 0 16px 0 var(--gutter);
+      font-family: var(--serif); font-weight: 600; font-size: 13px; letter-spacing: .06em;
+      color: var(--gold);
     }
-    .ticker-scroll {
-      display: flex;
-      align-items: center;
-      height: 100%;
-      overflow: hidden;
-      flex: 1;
+    .ticker-label::after { content: ''; width: 1px; height: 14px; background: var(--line); }
+    .ticker-viewport {
+      flex: 1; overflow: hidden; height: 100%;
+      -webkit-mask-image: linear-gradient(90deg, transparent, #000 40px, #000 calc(100% - 64px), transparent);
+              mask-image: linear-gradient(90deg, transparent, #000 40px, #000 calc(100% - 64px), transparent);
     }
     .ticker-track {
-      display: flex;
-      align-items: center;
-      gap: 0;
-      animation: ticker-scroll 40s linear infinite;
-      white-space: nowrap;
+      display: flex; width: max-content; height: 100%;
+      animation: ticker 70s linear infinite;
     }
-    .ticker-track:hover { animation-play-state: paused; }
+    .ticker:hover .ticker-track { animation-play-state: paused; }
+    .ticker-set { display: flex; }
     .ticker-item {
-      font-family: var(--mono);
-      font-size: 11px;
-      padding: 0 24px;
-      border-right: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      height: 30px;
+      display: flex; align-items: center; gap: 10px; padding: 0 22px; white-space: nowrap;
+      font-variant-numeric: tabular-nums;
     }
-    .ticker-name { color: var(--text2); font-size: 10px; letter-spacing: 0.5px; text-transform: uppercase; }
-    .ticker-val  { color: var(--text); }
-    .ticker-chg.pos { color: var(--green); }
-    .ticker-chg.neg { color: var(--red); }
-    @keyframes ticker-scroll {
-      0%   { transform: translateX(0); }
-      100% { transform: translateX(-50%); }
+    .ticker-name { color: var(--ink-3); font-size: 11px; font-weight: 600; letter-spacing: .06em; }
+    .ticker-val  { color: var(--ink); font-weight: 500; }
+    .ticker-chg  { font-weight: 500; }
+    @keyframes ticker { to { transform: translateX(-50%); } }
+
+    /* ── HEADER ──────────────────────────────────────────────────── */
+    .site-header {
+      position: sticky; top: 0; z-index: var(--z-header);
+      height: var(--header-h);
+      border-bottom: 1px solid transparent;
+      transition: background-color .35s var(--ease-out), border-color .35s var(--ease-out);
+    }
+    .site-header::before {
+      content: ''; position: absolute; inset: 0; z-index: -1;
+      background: oklch(0.175 0.028 262 / 0.78);
+      -webkit-backdrop-filter: blur(16px) saturate(140%);
+              backdrop-filter: blur(16px) saturate(140%);
+      opacity: 0; transition: opacity .35s var(--ease-out);
+    }
+    .site-header.is-stuck { border-bottom-color: var(--line-soft); }
+    .site-header.is-stuck::before { opacity: 1; }
+    .header-inner { height: 100%; display: flex; align-items: center; gap: 32px; }
+
+    .brand { display: flex; align-items: center; gap: 14px; text-decoration: none; min-width: 0; }
+    .brand-mark {
+      font-family: var(--serif); font-weight: 600; font-size: 22px; letter-spacing: .04em;
+      color: var(--gold); line-height: 1;
+    }
+    .brand-text { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
+    .brand-name { color: var(--ink); font-size: 14px; font-weight: 600; letter-spacing: .01em; }
+    .brand-sub  { color: var(--ink-3); font-size: 12px; white-space: nowrap; }
+
+    .nav { position: relative; display: flex; align-items: center; gap: 4px; margin-left: auto; height: 100%; }
+    .nav a {
+      display: flex; align-items: center; height: 100%; padding: 0 12px;
+      color: var(--ink-3); font-size: 14px; font-weight: 500; text-decoration: none;
+      transition: color .2s var(--ease-out);
+    }
+    .nav a:hover, .nav a[aria-current="true"] { color: var(--ink); }
+    .nav a:focus-visible { outline-offset: -8px; }
+    .nav-indicator {
+      position: absolute; left: 0; bottom: -1px; width: 100px; height: 2px;
+      background: var(--gold); border-radius: 2px;
+      transform-origin: 0 50%; transform: scaleX(0); opacity: 0;
+      transition: transform .5s var(--ease-expo), opacity .3s var(--ease-out);
     }
 
-    /* ── HEADER ───────────────────────────────────────────────────── */
-    .header {
-      background: var(--bg1);
-      border-bottom: 1px solid var(--border);
-      padding: 0 40px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      height: 56px;
-      position: sticky;
-      top: 0;
-      z-index: 100;
+    .updated {
+      display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+      color: var(--ink-3); font-size: 13px; white-space: nowrap;
     }
-    .header-brand {
-      display: flex;
-      align-items: center;
-      gap: 14px;
+    .updated time { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+    .live-dot { position: relative; width: 7px; height: 7px; border-radius: 50%; background: var(--up); flex-shrink: 0; }
+    .live-dot::after {
+      content: ''; position: absolute; inset: 0; border-radius: 50%; background: var(--up);
+      animation: live 2.4s var(--ease-out) infinite;
     }
-    .header-badge {
-      background: var(--orange);
-      color: #000;
-      font-family: var(--mono);
-      font-size: 12px;
-      font-weight: 600;
-      letter-spacing: 2px;
-      padding: 5px 10px;
-      line-height: 1;
-    }
-    .header-name {
-      font-size: 13px;
-      font-weight: 600;
-      letter-spacing: 1px;
-      color: var(--text);
-      text-transform: uppercase;
-    }
-    .header-sub {
-      font-size: 10px;
-      color: var(--text2);
-      letter-spacing: 0.5px;
-      margin-top: 2px;
-      text-transform: uppercase;
-    }
-    .header-nav {
-      display: flex;
-      align-items: center;
-      gap: 2px;
-    }
-    .nav-btn {
-      font-family: var(--mono);
-      font-size: 11px;
-      color: var(--text2);
-      text-decoration: none;
-      padding: 6px 14px;
-      letter-spacing: 0.5px;
-      border: 1px solid transparent;
-      transition: all 0.12s;
-      text-transform: uppercase;
-    }
-    .nav-btn:hover { color: var(--orange); border-color: var(--border2); background: var(--bg3); }
-    .nav-btn .fkey {
-      font-size: 9px;
-      color: var(--orange);
-      display: block;
-      letter-spacing: 1px;
-      margin-bottom: 1px;
-    }
-    .header-time {
-      font-family: var(--mono);
-      font-size: 11px;
-      color: var(--text2);
-      text-align: right;
-    }
-    .header-time .live-dot {
-      display: inline-block;
-      width: 6px; height: 6px;
-      background: var(--green);
-      border-radius: 50%;
-      margin-right: 5px;
-      animation: pulse 2s infinite;
-    }
-    @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+    @keyframes live { from { transform: scale(1); opacity: .55; } to { transform: scale(3); opacity: 0; } }
 
-    /* ── MAIN CONTENT ─────────────────────────────────────────────── */
-    .main { max-width: 1440px; margin: 0 auto; padding: 0 40px 80px; }
-
-    /* ── HERO ─────────────────────────────────────────────────────── */
-    .hero {
-      padding: 48px 0 44px;
-      border-bottom: 1px solid var(--border);
-    }
+    /* ── HERO ────────────────────────────────────────────────────── */
+    .hero { position: relative; padding-top: clamp(40px, 7vw, 96px); }
     .hero-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 48px;
-      align-items: center;
+      display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.12fr);
+      gap: clamp(32px, 5vw, 80px); align-items: center;
     }
-    .hero-tag {
-      font-family: var(--mono);
-      font-size: 10px;
-      color: var(--orange);
-      letter-spacing: 3px;
-      text-transform: uppercase;
-      margin-bottom: 16px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
+    .kicker {
+      display: flex; align-items: center; gap: 14px; margin-bottom: 28px;
+      color: var(--gold); font-size: 13.5px; font-weight: 500; letter-spacing: .02em;
     }
-    .hero-tag::after { content: ''; flex: 1; height: 1px; background: var(--border2); }
+    .kicker::before { content: ''; width: 28px; height: 1px; background: currentColor; }
     .hero-title {
-      font-size: 42px;
-      font-weight: 700;
-      color: #fff;
-      letter-spacing: -0.5px;
-      line-height: 1.1;
-      margin-bottom: 8px;
+      font-family: var(--serif); font-weight: 500;
+      font-size: clamp(2.75rem, 1.2rem + 4.4vw, 5.25rem);
+      font-variation-settings: 'opsz' 36;
+      line-height: 1.02; letter-spacing: -0.015em;
+      color: var(--ink);
     }
-    .hero-title .accent { color: var(--orange); }
+    .hero-title .line { display: block; overflow: hidden; padding-bottom: .08em; margin-bottom: -.08em; }
+    .hero-title .line > span { display: block; }
+    .hero-title .accent { color: var(--gold); }
     .hero-desc {
-      font-size: 13px;
-      color: var(--text2);
-      max-width: 480px;
-      margin-top: 16px;
-      line-height: 1.7;
+      max-width: 46ch; margin-top: 28px;
+      font-size: clamp(1rem, .95rem + .25vw, 1.125rem); line-height: 1.7;
+      color: var(--ink-2); text-wrap: pretty;
     }
-    .hero-stats {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 12px;
-      margin-top: 32px;
-    }
-    .hero-stat {
-      background: var(--bg2);
-      border: 1px solid var(--border);
-      padding: 16px 20px;
-    }
-    .hero-stat-label {
-      font-family: var(--mono);
-      font-size: 9px;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      color: var(--text2);
-      margin-bottom: 6px;
-    }
-    .hero-stat-value {
-      font-family: var(--mono);
-      font-size: 26px;
-      font-weight: 600;
-      color: var(--orange);
-      line-height: 1;
-    }
-    .hero-stat-value.big { font-size: 36px; }
-    .hero-stat-change {
-      font-family: var(--mono);
-      font-size: 11px;
-      margin-top: 4px;
-    }
-    .hero-right {
-      display: flex;
-      flex-direction: column;
-      gap: 0;
-    }
-    .hero-terminal {
-      background: var(--bg2);
-      border: 1px solid var(--border);
-      overflow: hidden;
-    }
-    .terminal-titlebar {
-      background: var(--bg3);
-      border-bottom: 1px solid var(--border);
-      padding: 8px 16px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .terminal-dot { width: 8px; height: 8px; border-radius: 50%; }
-    .terminal-label {
-      font-family: var(--mono);
-      font-size: 10px;
-      color: var(--text2);
-      letter-spacing: 1px;
-      margin-left: 6px;
-      text-transform: uppercase;
-    }
-    .terminal-body { padding: 20px; }
-    .terminal-line {
-      font-family: var(--mono);
-      font-size: 12px;
-      color: var(--text2);
-      line-height: 2;
-      display: flex;
-      gap: 12px;
-    }
-    .terminal-line .k { color: var(--orange); min-width: 160px; }
-    .terminal-line .v { color: var(--text); }
-    .terminal-line .v.pos { color: var(--green); }
-    .terminal-line .v.neg { color: var(--red); }
-    .cursor {
-      display: inline-block;
-      width: 8px; height: 14px;
-      background: var(--orange);
-      margin-left: 4px;
-      vertical-align: middle;
-      animation: blink 1.1s step-end infinite;
-    }
-    @keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0;} }
 
-    /* ── SECTION ──────────────────────────────────────────────────── */
-    .section {
-      padding: 44px 0;
-      border-bottom: 1px solid var(--border);
+    .quote { margin-top: clamp(32px, 4vw, 48px); padding-top: 24px; border-top: 1px solid var(--line-soft); }
+    .quote-head { display: flex; align-items: baseline; gap: 12px; font-size: 13.5px; color: var(--ink-3); }
+    .quote-head strong { color: var(--ink); font-weight: 600; letter-spacing: .04em; }
+    .quote-date { margin-left: auto; font-variant-numeric: tabular-nums; }
+    .quote-value {
+      display: block; margin-top: 6px;
+      font-size: clamp(3.25rem, 2.2rem + 3.6vw, 5rem); font-weight: 600;
+      line-height: 1; letter-spacing: -0.03em; color: var(--ink);
+      font-variant-numeric: tabular-nums;
     }
-    .section:last-child { border-bottom: none; }
+    .quote-deltas { display: flex; flex-wrap: wrap; gap: 6px 22px; margin-top: 14px; font-size: 14.5px; color: var(--ink-3); }
+    .quote-deltas b { font-weight: 600; margin-right: 6px; font-variant-numeric: tabular-nums; }
+
+    .hero-meta { display: flex; flex-wrap: wrap; gap: 20px 40px; margin-top: 28px; }
+    .hero-meta div { display: flex; flex-direction: column; gap: 2px; }
+    .hero-meta dt { font-size: 13px; color: var(--ink-3); }
+    .hero-meta dd { font-size: 15px; font-weight: 500; color: var(--ink); }
+    .hero-meta dd .pos { font-weight: 600; margin-left: 6px; }
+
+    .hero-visual { position: relative; height: clamp(300px, 38vw, 500px); will-change: transform; }
+    .hero-visual::before {
+      content: ''; position: absolute; inset: 0 0 8% 18%;
+      background: radial-gradient(closest-side, oklch(0.8 0.1 82 / .10), transparent 70%);
+      pointer-events: none;
+    }
+    .hero-visual svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+    .hc-grid line { stroke: var(--line-soft); stroke-width: 1; }
+    .hc-grid line.is-base { stroke: var(--ink-4); stroke-dasharray: 3 5; }
+    .hc-grid text, .hc-axis text { fill: var(--ink-3); font: 500 11.5px var(--sans); font-variant-numeric: tabular-nums; }
+    .hc-stop-a { stop-color: var(--gold); stop-opacity: .20; }
+    .hc-stop-b { stop-color: var(--gold); stop-opacity: 0; }
+    .hc-area { fill: url(#hcFill); }
+    .hc-line {
+      fill: none; stroke: var(--gold); stroke-width: 2.25; stroke-linecap: round; stroke-linejoin: round;
+      filter: drop-shadow(0 0 10px var(--gold-glow));
+    }
+    .hc-ring  { fill: var(--bg); }
+    .hc-dot   { fill: var(--gold-hi); }
+    .hc-pulse { fill: none; stroke: var(--gold); stroke-width: 1.5; opacity: 0; transform-box: fill-box; transform-origin: center; }
+    .hc-label { fill: var(--ink); font: 600 12.5px var(--sans); font-variant-numeric: tabular-nums; }
+    .hero-visual.is-done .hc-pulse { animation: pulse-ring 2.8s var(--ease-out) infinite; }
+    @keyframes pulse-ring { from { transform: scale(1); opacity: .7; } to { transform: scale(3.4); opacity: 0; } }
+
+    /* ── KEY FACTS ───────────────────────────────────────────────── */
+    .facts { margin-top: clamp(48px, 6vw, 80px); }
+    .facts-grid {
+      display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 1px;
+      background: var(--line-soft);
+      border-block: 1px solid var(--line-soft);
+    }
+    .fact { background: var(--bg); padding: 18px 20px 18px 0; display: flex; flex-direction: column; gap: 4px; }
+    .fact:not(:nth-child(6n + 1)) { padding-left: 20px; }
+    .fact dt { font-size: 13px; color: var(--ink-3); }
+    .fact dd { font-size: 15.5px; font-weight: 500; color: var(--ink); font-variant-numeric: tabular-nums; display: flex; align-items: center; gap: 8px; }
+    .fact dd small { font-size: 13px; font-weight: 400; color: var(--ink-3); }
+
+    /* ── SECTIONS ────────────────────────────────────────────────── */
+    .section { padding-top: var(--section-space); scroll-margin-top: var(--header-h); }
     .section-head {
-      display: flex;
-      align-items: baseline;
-      gap: 16px;
-      margin-bottom: 28px;
-    }
-    .section-label {
-      font-family: var(--mono);
-      font-size: 10px;
-      letter-spacing: 2.5px;
-      text-transform: uppercase;
-      color: var(--orange);
+      display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap;
+      gap: 12px 32px; margin-bottom: clamp(24px, 3vw, 36px);
     }
     .section-title {
-      font-size: 18px;
-      font-weight: 600;
-      color: var(--text);
-      letter-spacing: -0.2px;
+      font-family: var(--serif); font-weight: 500;
+      font-size: clamp(2rem, 1.35rem + 2.1vw, 3rem);
+      font-variation-settings: 'opsz' 22;
+      line-height: 1.08; letter-spacing: -0.01em; color: var(--ink);
+      text-wrap: balance;
     }
-    .section-rule { flex: 1; height: 1px; background: var(--border); }
-    .section-meta {
-      font-family: var(--mono);
-      font-size: 10px;
-      color: var(--text3);
-      letter-spacing: 0.5px;
-      text-transform: uppercase;
-    }
+    .section-note { font-size: 14px; color: var(--ink-3); padding-bottom: .35em; }
 
-    /* ── CHART CARD ───────────────────────────────────────────────── */
-    .chart-card {
-      background: var(--bg1);
-      border: 1px solid var(--border);
-    }
-    .chart-card-head {
-      padding: 14px 20px;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-    .chart-card-title {
-      font-family: var(--mono);
-      font-size: 11px;
-      color: var(--text2);
-      letter-spacing: 1px;
-      text-transform: uppercase;
-    }
-    .chart-card-meta {
-      display: flex;
-      gap: 20px;
-    }
-    .chart-meta-item { font-family: var(--mono); font-size: 11px; color: var(--text3); }
-    .chart-meta-item span { color: var(--text2); }
-    .chart-body { padding: 20px; }
-    .chart-wrap { position: relative; }
-
-    /* ── INDEX CHART METRICS BAR ──────────────────────────────────── */
-    .index-metrics {
-      display: grid;
-      grid-template-columns: repeat(6, 1fr);
-      border-top: 1px solid var(--border);
-    }
-    .index-metric {
-      padding: 14px 20px;
-      border-right: 1px solid var(--border);
-    }
-    .index-metric:last-child { border-right: none; }
-    .index-metric-label {
-      font-family: var(--mono);
-      font-size: 9px;
-      letter-spacing: 1.5px;
-      text-transform: uppercase;
-      color: var(--text3);
-      margin-bottom: 5px;
-    }
-    .index-metric-val {
-      font-family: var(--mono);
-      font-size: 16px;
-      font-weight: 600;
-      color: var(--text);
-    }
-    .index-metric-val.pos { color: var(--green); }
-    .index-metric-val.neg { color: var(--red); }
-    .index-metric-val.gold { color: var(--orange); }
-    .index-metric-sub {
-      font-family: var(--mono);
-      font-size: 10px;
-      color: var(--text3);
-      margin-top: 3px;
-    }
-
-    /* ── PERFORMANCE TABLE ────────────────────────────────────────── */
-    .perf-table { width: 100%; border-collapse: collapse; }
-    .perf-table thead tr { border-bottom: 1px solid var(--border2); }
-    .perf-table th {
-      font-family: var(--mono);
-      font-size: 9px;
-      letter-spacing: 1.5px;
-      text-transform: uppercase;
-      color: var(--text3);
-      padding: 10px 16px;
-      text-align: left;
-      font-weight: 500;
-      white-space: nowrap;
-    }
-    .perf-table th.r { text-align: right; }
-    .perf-table tbody tr {
-      border-bottom: 1px solid rgba(255,255,255,0.03);
-      transition: background 0.1s;
-    }
-    .perf-table tbody tr:hover { background: rgba(245,162,0,0.025); }
-    .perf-table td {
-      padding: 13px 16px;
-      font-size: 13px;
-      vertical-align: middle;
-    }
-    .perf-table td.r { text-align: right; }
-    .rank-cell {
-      font-family: var(--mono);
-      font-size: 11px;
-      color: var(--text3);
-      width: 36px;
-    }
-    .rank-cell.gold   { color: var(--orange); font-weight: 600; }
-    .rank-cell.silver { color: #9ba8b8;        font-weight: 600; }
-    .rank-cell.bronze { color: #b07640;         font-weight: 600; }
-    .watch-cell-name { font-weight: 500; color: var(--text); font-size: 13px; }
-    .watch-cell-ref  { font-family: var(--mono); font-size: 10px; color: var(--text3); margin-top: 2px; }
-    .brand-pill {
-      display: inline-block;
-      font-family: var(--mono);
-      font-size: 9px;
-      letter-spacing: 1px;
-      text-transform: uppercase;
-      color: var(--text3);
-      background: var(--bg3);
-      border: 1px solid var(--border);
-      padding: 2px 7px;
-      white-space: nowrap;
-    }
-    .price-mono { font-family: var(--mono); font-size: 13px; color: var(--text); white-space: nowrap; }
-    .ytd-cell { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
-    .bar-bg { width: 80px; height: 4px; background: var(--bg3); flex-shrink: 0; }
-    .bar-fg { height: 4px; }
-    .bar-pos { background: var(--green); }
-    .bar-neg { background: var(--red); }
-    .ytd-num {
-      font-family: var(--mono);
-      font-size: 13px;
-      font-weight: 600;
-      min-width: 70px;
-      text-align: right;
-    }
-    .ytd-num.pos { color: var(--green); }
-    .ytd-num.neg { color: var(--red); }
-    .wow-num { font-family: var(--mono); font-size: 12px; }
-    .wow-num.pos { color: var(--green); }
-    .wow-num.neg { color: var(--red); }
-
-    /* ── WATCH CHARTS GRID ────────────────────────────────────────── */
-    .watch-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 16px;
-    }
-    .watch-card {
-      background: var(--bg1);
-      border: 1px solid var(--border);
+    .panel {
+      background: var(--bg-2); border: 1px solid var(--line-soft); border-radius: var(--radius);
       overflow: hidden;
     }
-    .watch-card-head {
-      padding: 14px 18px 10px;
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      border-bottom: 1px solid var(--border);
+    .panel-head {
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
+      gap: 10px 32px; padding: 18px 24px; border-bottom: 1px solid var(--line-soft);
     }
-    .watch-card-title { font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.2; }
-    .watch-card-ref {
-      font-family: var(--mono);
-      font-size: 9px;
-      color: var(--text3);
-      letter-spacing: 0.5px;
-      margin-top: 3px;
-      text-transform: uppercase;
-    }
-    .watch-card-price { text-align: right; }
-    .watch-card-current {
-      font-family: var(--mono);
-      font-size: 17px;
-      font-weight: 600;
-      color: var(--text);
-      line-height: 1;
-    }
-    .watch-card-ytd { font-family: var(--mono); font-size: 11px; margin-top: 3px; text-align: right; }
-    .watch-chart-body { padding: 12px 18px 0; }
-    .watch-chart-wrap { position: relative; }
-    .watch-card-stats {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      border-top: 1px solid var(--border);
-      margin-top: 12px;
-    }
-    .watch-card-stat { padding: 10px 14px; border-right: 1px solid var(--border); }
-    .watch-card-stat:last-child { border-right: none; }
-    .wcs-label {
-      font-family: var(--mono);
-      font-size: 8px;
-      letter-spacing: 1.5px;
-      text-transform: uppercase;
-      color: var(--text3);
-      margin-bottom: 4px;
-    }
-    .wcs-value { font-family: var(--mono); font-size: 12px; color: var(--text2); }
-    .wcs-value.pos { color: var(--green); }
-    .wcs-value.neg { color: var(--red); }
+    .panel-title { font-size: 14.5px; font-weight: 600; color: var(--ink); letter-spacing: .005em; }
+    .panel-meta { display: flex; flex-wrap: wrap; gap: 6px 24px; font-size: 13.5px; color: var(--ink-3); }
+    .panel-meta b { font-weight: 600; color: var(--ink); margin-left: 6px; font-variant-numeric: tabular-nums; }
+    .panel-meta b.gold { color: var(--gold); }
+    .panel-meta b.pos { color: var(--up); }
 
-    /* ── METHODOLOGY ──────────────────────────────────────────────── */
-    .methodology-grid { display: grid; grid-template-columns: 260px 1fr; gap: 32px; }
-    .methodology-sidebar { padding-top: 4px; }
-    .method-index-item {
-      padding: 10px 0;
-      border-bottom: 1px solid var(--border);
-      font-family: var(--mono);
-      font-size: 10px;
-      color: var(--text3);
-      letter-spacing: 0.5px;
-      cursor: default;
-    }
-    .method-index-item span { color: var(--orange); margin-right: 8px; }
-    .methodology-body { background: var(--bg1); border: 1px solid var(--border); padding: 32px 36px; }
-    .methodology-body p {
-      font-size: 14px;
-      line-height: 1.85;
-      color: var(--text2);
-      position: relative;
-      padding-left: 20px;
-    }
-    .methodology-body p::before {
-      content: '//';
-      position: absolute;
-      left: 0;
-      font-family: var(--mono);
-      font-size: 11px;
-      color: var(--text3);
-      top: 3px;
-    }
-    .method-label {
-      font-family: var(--mono);
-      font-size: 9px;
-      letter-spacing: 2px;
-      color: var(--orange);
-      text-transform: uppercase;
-      margin-bottom: 16px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .method-label::after { content: ''; flex: 1; height: 1px; background: var(--border2); }
+    /* ── COMPOSITE INDEX ─────────────────────────────────────────── */
+    .index-chart { padding: 24px 20px 12px 12px; }
+    .index-chart .chart-wrap { position: relative; height: clamp(260px, 30vw, 380px); }
 
-    /* ── FOOTER ───────────────────────────────────────────────────── */
-    .footer {
-      background: var(--bg1);
-      border-top: 1px solid var(--border);
-      padding: 16px 40px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
+    .weeks-head {
+      display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+      padding: 16px 24px; border-top: 1px solid var(--line-soft);
     }
-    .footer-left { display: flex; align-items: center; gap: 20px; }
-    .footer-badge {
-      background: var(--orange);
-      color: #000;
-      font-family: var(--mono);
-      font-size: 9px;
-      font-weight: 600;
-      letter-spacing: 2px;
-      padding: 3px 7px;
+    .weeks-head h3 { font-size: 14px; font-weight: 600; color: var(--ink); }
+    .weeks-head p  { font-size: 13px; color: var(--ink-3); }
+    .weeks {
+      list-style: none; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr));
+      border-top: 1px solid var(--line-soft);
+      margin-right: -1px; margin-bottom: -1px;
     }
-    .footer-text  { font-family: var(--mono); font-size: 10px; color: var(--text3); letter-spacing: 0.5px; }
-    .footer-right { font-family: var(--mono); font-size: 10px; color: var(--text3); }
+    .week {
+      position: relative; padding: 14px 16px 13px;
+      border-right: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft);
+      display: flex; flex-direction: column; gap: 1px;
+      cursor: default; outline: none;
+      transition: background-color .2s var(--ease-out);
+    }
+    .week::before {
+      content: ''; position: absolute; inset: -1px 0 auto 0; height: 2px; background: var(--gold);
+      transform: scaleX(0); transform-origin: 0 50%; transition: transform .35s var(--ease-expo);
+    }
+    .week:hover, .week.is-active, .week:focus-visible { background: var(--bg-3); }
+    .week.is-active::before, .week:focus-visible::before { transform: scaleX(1); }
+    .week-date { font-size: 12.5px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+    .week-val  { font-size: 16px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+    .week-chg  { font-size: 12.5px; font-weight: 500; font-variant-numeric: tabular-nums; }
+    .week-chg.base { color: var(--gold); }
+    .week.is-latest .week-date::after { content: ' · Latest'; color: var(--gold); }
 
-    /* ── RESPONSIVE ───────────────────────────────────────────────── */
-    @media (max-width: 1100px) {
-      .watch-grid { grid-template-columns: 1fr; }
-      .methodology-grid { grid-template-columns: 1fr; }
+    /* ── PERFORMANCE TABLE ───────────────────────────────────────── */
+    .table-scroll { overflow-x: auto; overscroll-behavior-x: contain; }
+    .perf { width: 100%; min-width: 900px; border-collapse: collapse; font-size: 14.5px; }
+    .perf th {
+      padding: 14px 16px; text-align: left; white-space: nowrap;
+      font-size: 13px; font-weight: 500; color: var(--ink-3);
+      border-bottom: 1px solid var(--line-soft);
     }
-    @media (max-width: 860px) {
-      .main { padding: 0 20px 60px; }
-      .header { padding: 0 20px; }
-      .footer { padding: 16px 20px; flex-direction: column; gap: 8px; }
+    .perf th:first-child, .perf td:first-child { padding-left: 24px; }
+    .perf th:last-child,  .perf td:last-child  { padding-right: 24px; }
+    .perf .r { text-align: right; }
+    .perf td { padding: 15px 16px; vertical-align: middle; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .perf tbody tr { border-bottom: 1px solid var(--line-soft); transition: background-color .2s var(--ease-out); }
+    .perf tbody tr:last-child { border-bottom: 0; }
+    .perf tbody tr:hover { background: var(--bg-3); }
+    .rank { width: 56px; font-family: var(--serif); font-variation-settings: 'opsz' 12; font-weight: 500; font-size: 16px; color: var(--ink-3); }
+    .rank.top   { color: var(--ink); }
+    .rank.first { color: var(--gold); }
+    .watch-link {
+      color: var(--ink); font-weight: 600; text-decoration: underline;
+      text-decoration-color: transparent; text-underline-offset: 4px; text-decoration-thickness: 1px;
+      transition: text-decoration-color .2s var(--ease-out);
+    }
+    .watch-link:hover { text-decoration-color: var(--gold); }
+    .watch-ref { display: block; margin-top: 1px; font-size: 12.5px; color: var(--ink-3); }
+    .brand-cell { color: var(--ink-2); font-size: 14px; }
+    .price { color: var(--ink); }
+    .ytd { display: flex; align-items: center; justify-content: flex-end; gap: 14px; }
+    .ytd-num { min-width: 72px; text-align: right; font-weight: 600; }
+    .bar { position: relative; width: 120px; height: 6px; border-radius: 3px; background: var(--bg-3); flex-shrink: 0; }
+    .bar-fill {
+      position: absolute; inset: 0 auto 0 0; width: var(--w); border-radius: 3px;
+      background: var(--up);
+      clip-path: inset(0 0 0 0 round 3px);
+    }
+    .bar-fill.neg { background: var(--down); }
+
+    /* ── WATCH CHARTS ────────────────────────────────────────────── */
+    .watch-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+    .watch {
+      background: var(--bg-2); border: 1px solid var(--line-soft); border-radius: var(--radius);
+      overflow: hidden; scroll-margin-top: calc(var(--header-h) + 24px);
+      transition: border-color .3s var(--ease-out);
+    }
+    .watch:hover { border-color: var(--line); }
+    .watch:target { animation: target-flash 2s var(--ease-out); }
+    @keyframes target-flash {
+      0%, 30% { border-color: var(--gold); box-shadow: 0 0 0 3px oklch(0.8 0.1 82 / .18); }
+      100%    { border-color: var(--line-soft); box-shadow: 0 0 0 3px transparent; }
+    }
+    .watch-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding: 20px 22px 4px; }
+    .watch-name { font-size: 17px; font-weight: 600; color: var(--ink); line-height: 1.3; }
+    .watch-meta { font-size: 13px; color: var(--ink-3); margin-top: 2px; }
+    .watch-price { text-align: right; flex-shrink: 0; }
+    .watch-current { display: block; font-size: 22px; font-weight: 600; color: var(--ink); line-height: 1.2; letter-spacing: -0.01em; }
+    .watch-ytd { display: block; margin-top: 2px; font-size: 13.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .watch-ytd span { color: var(--ink-3); font-weight: 400; margin-left: 4px; }
+    .watch-chart { position: relative; height: 180px; margin: 12px 14px 8px 6px; }
+    .watch-stats {
+      display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+      border-top: 1px solid var(--line-soft);
+    }
+    .watch-stats div { padding: 13px 22px; }
+    .watch-stats div + div { border-left: 1px solid var(--line-soft); }
+    .watch-stats dt { font-size: 12.5px; color: var(--ink-3); }
+    .watch-stats dd { font-size: 14.5px; font-weight: 500; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+    /* ── METHODOLOGY ─────────────────────────────────────────────── */
+    .method { display: grid; grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); gap: clamp(32px, 6vw, 96px); align-items: start; }
+    .steps { list-style: none; position: relative; }
+    .steps::before, .steps::after {
+      content: ''; position: absolute; left: 17px; top: 18px; bottom: 18px; width: 1px;
+      background: var(--line);
+    }
+    .steps::after { background: var(--gold); transform-origin: 50% 0; transform: scaleY(var(--p, 1)); }
+    .step { position: relative; display: grid; grid-template-columns: 36px 1fr; gap: 18px; padding: 10px 0 18px; }
+    .step-num {
+      position: relative; z-index: 1; width: 36px; height: 36px; border-radius: 50%;
+      display: grid; place-items: center;
+      font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums;
+      background: var(--bg); border: 1px solid var(--gold); color: var(--gold);
+      transition: border-color .4s var(--ease-out), color .4s var(--ease-out), background-color .4s var(--ease-out);
+    }
+    .step-title { display: block; font-size: 15.5px; font-weight: 600; color: var(--ink); padding-top: 6px; }
+    .step-cap   { display: block; font-size: 14px; color: var(--ink-3); margin-top: 2px; line-height: 1.5; }
+    .motion .steps.is-tracking .step:not(.is-lit) .step-num { border-color: var(--line); color: var(--ink-3); }
+    .step.is-lit .step-num { background: color-mix(in oklch, var(--gold) 14%, var(--bg)); }
+
+    .method-body { max-width: 68ch; }
+    .method-body p { font-size: 1.0625rem; line-height: 1.8; color: var(--ink-2); text-wrap: pretty; }
+    .method-body p + p { margin-top: 1.25em; }
+    .method-body .lead {
+      font-family: var(--serif); font-weight: 400; font-size: clamp(1.25rem, 1.05rem + .6vw, 1.5rem);
+      font-variation-settings: 'opsz' 12;
+      line-height: 1.5; color: var(--ink); letter-spacing: 0;
+    }
+    .method-body .lead + p { margin-top: 1.75em; }
+    .method-note {
+      margin-top: 2em !important; padding: 18px 22px; border-radius: 8px;
+      background: var(--bg-2); border: 1px solid var(--line-soft);
+      font-size: 15px !important; line-height: 1.7 !important;
+    }
+    .method-note strong { display: block; color: var(--gold); font-weight: 600; font-size: 13.5px; margin-bottom: 4px; }
+
+    /* ── FOOTER ──────────────────────────────────────────────────── */
+    .site-footer { margin-top: var(--section-space); border-top: 1px solid var(--line-soft); }
+    .footer-inner {
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
+      gap: 12px 32px; padding-block: 28px 32px; font-size: 13.5px; color: var(--ink-3);
+    }
+    .footer-brand { display: flex; align-items: center; gap: 14px; }
+    .footer-brand .brand-mark { font-size: 18px; }
+
+    /* ── MOTION: load choreography (only when .motion is set) ────── */
+    @keyframes rise   { from { transform: translateY(105%); } }
+    @keyframes fade-up { from { opacity: 0; transform: translateY(14px); } }
+    @keyframes fade    { from { opacity: 0; } }
+
+    .motion .ticker            { animation: fade .6s var(--ease-out) both; }
+    .motion .kicker            { animation: fade-up .8s var(--ease-out) 60ms both; }
+    .motion .hero-title .line > span { animation: rise 1.1s var(--ease-expo) both; }
+    .motion .hero-title .line:nth-child(1) > span { animation-delay: 100ms; }
+    .motion .hero-title .line:nth-child(2) > span { animation-delay: 190ms; }
+    .motion .hero-desc         { animation: fade-up .9s var(--ease-out) 380ms both; }
+    .motion .quote             { animation: fade-up .9s var(--ease-out) 480ms both; }
+    .motion .hero-meta         { animation: fade-up .9s var(--ease-out) 580ms both; }
+    .motion .hc-grid, .motion .hc-axis { animation: fade 1s var(--ease-out) 200ms both; }
+    .motion .fact              { animation: fade .8s var(--ease-out) both; animation-delay: calc(760ms + var(--i, 0) * 45ms); }
+
+    /* ── MOTION: scroll reveals (JS adds .is-pending below the fold) ── */
+    .motion .watch { transition: border-color .3s var(--ease-out), opacity .7s var(--ease-out) var(--d, 0ms), transform 1s var(--ease-expo) var(--d, 0ms); }
+    .motion .watch.is-pending { opacity: 0; transform: translateY(28px); }
+
+    .motion .perf tbody tr { transition: background-color .2s var(--ease-out), opacity .6s var(--ease-out) var(--d, 0ms), transform .9s var(--ease-expo) var(--d, 0ms); }
+    .motion .is-pending .perf tbody tr { opacity: 0; transform: translateY(10px); }
+    .motion .bar-fill { transition: clip-path 1.2s var(--ease-expo) calc(var(--d, 0ms) + 180ms); }
+    .motion .is-pending .bar-fill { clip-path: inset(0 100% 0 0 round 3px); }
+
+    .motion .week { transition: background-color .2s var(--ease-out), opacity .5s var(--ease-out) var(--d, 0ms), transform .7s var(--ease-expo) var(--d, 0ms); }
+    .motion .is-pending .week { opacity: 0; transform: translateY(8px); }
+
+    /* ── RESPONSIVE ──────────────────────────────────────────────── */
+    @media (max-width: 1180px) {
+      .facts-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      .fact:not(:nth-child(6n + 1)) { padding-left: 0; }
+      .fact:not(:nth-child(4n + 1)) { padding-left: 20px; }
+      .updated .label { display: none; }
+    }
+    @media (max-width: 1080px) {
       .hero-grid { grid-template-columns: 1fr; }
-      .hero-right { display: none; }
-      .hero-stats { grid-template-columns: repeat(2, 1fr); }
-      .index-metrics { grid-template-columns: repeat(3, 1fr); }
-      .index-metrics .index-metric:nth-child(4),
-      .index-metrics .index-metric:nth-child(5),
-      .index-metrics .index-metric:nth-child(6) { border-top: 1px solid var(--border); }
-      .header-nav { display: none; }
-      .hero-title { font-size: 30px; }
+      .hero-visual { height: clamp(260px, 52vw, 420px); }
+      .watch-grid { grid-template-columns: 1fr; }
+      .method { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 900px) {
+      .nav { display: none; }
+      .updated { margin-left: auto; }
+      .weeks { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    @media (max-width: 640px) {
+      :root { --header-h: 58px; }
+      .brand-sub { display: none; }
+      .brand-mark { font-size: 20px; }
+      .brand-name { font-size: 13.5px; }
+      .facts-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .fact:not(:nth-child(4n + 1)) { padding-left: 0; }
+      .fact:nth-child(2n) { padding-left: 16px; }
+      .panel-head { padding: 16px 18px; }
+      .weeks-head { padding: 14px 18px; }
+      .week { padding: 12px 14px; }
+      .index-chart { padding: 18px 10px 8px 4px; }
+      .watch-head { padding: 18px 18px 4px; }
+      .watch-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .watch-stats div { padding: 12px 18px; }
+      .watch-stats div:nth-child(3) { border-left: 0; }
+      .watch-stats div:nth-child(n + 3) { border-top: 1px solid var(--line-soft); }
+
+      /* Constituent table becomes stacked rows: nothing hidden, no sideways scroll. */
+      .table-scroll { overflow: visible; }
+      .perf { min-width: 0; }
+      .perf thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+      .perf tbody, .perf td { display: block; }
+      .perf tbody tr {
+        display: grid; grid-template-columns: 26px repeat(4, minmax(0, 1fr));
+        grid-template-areas: "rank watch watch watch ytd" "rank brand brand brand ytd" "rank base cur chg wow";
+        column-gap: 10px; padding: 16px 18px;
+      }
+      .perf td { padding: 0 !important; white-space: normal; text-align: left !important; font-size: 14px; }
+      .perf .c-rank  { grid-area: rank; width: auto; font-size: 15px; line-height: 1.5; }
+      .perf .c-watch { grid-area: watch; }
+      .perf .c-brand { grid-area: brand; font-size: 12.5px; color: var(--ink-3); }
+      .perf .c-ytd   { grid-area: ytd; }
+      .perf .c-base  { grid-area: base; } .perf .c-cur { grid-area: cur; }
+      .perf .c-chg   { grid-area: chg; }  .perf .c-wow { grid-area: wow; }
+      .perf .c-base, .perf .c-cur, .perf .c-chg, .perf .c-wow { margin-top: 12px; font-size: 13.5px; }
+      .perf [data-label]::before { content: attr(data-label); display: block; font-size: 12px; color: var(--ink-3); }
+      .perf .ytd { flex-direction: column-reverse; align-items: flex-end; gap: 8px; }
+      .perf .ytd-num { min-width: 0; }
+      .perf .bar { width: 64px; }
+    }
+    @media (max-width: 420px) {
+      .updated { font-size: 12px; gap: 6px; }
+      .brand { gap: 10px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      .ticker-track { animation: none; }
+      .ticker-viewport { overflow-x: auto; }
+      .ticker-set[aria-hidden="true"] { display: none; }
+      *, *::before, *::after {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important;
+        transition-delay: 0ms !important;
+      }
     }
   </style>
 </head>
 <body>
 
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="progress" id="progress" aria-hidden="true"></div>
+
 <!-- ═══════════════════════════════════════════════════════════ TICKER -->
-<div class="ticker-wrap">
+<div class="ticker" role="region" aria-label="Latest prices">
   <div class="ticker-label">LWX</div>
-  <div class="ticker-scroll">
+  <div class="ticker-viewport">
     <div class="ticker-track" id="tickerTrack"></div>
   </div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════ HEADER -->
-<header class="header">
-  <div class="header-brand">
-    <div class="header-badge">LWX</div>
-    <div>
-      <div class="header-name">The Luxury Watch Index</div>
-      <div class="header-sub">Secondary Market · 10 Constituents · Weekly Snapshot</div>
+<header class="site-header" id="siteHeader">
+  <div class="container header-inner">
+    <a class="brand" href="#overview" aria-label="The Luxury Watch Index, back to top">
+      <span class="brand-mark">LWX</span>
+      <span class="brand-text">
+        <span class="brand-name">The Luxury Watch Index</span>
+        <span class="brand-sub" id="brandSub">Secondary market · Weekly snapshot</span>
+      </span>
+    </a>
+    <nav class="nav" id="nav" aria-label="Sections">
+      <a href="#overview">Overview</a>
+      <a href="#index">Index</a>
+      <a href="#performance">Performance</a>
+      <a href="#watches">Watches</a>
+      <a href="#methodology">Methodology</a>
+      <span class="nav-indicator" id="navIndicator" aria-hidden="true"></span>
+    </nav>
+    <div class="updated">
+      <span class="live-dot" aria-hidden="true"></span>
+      <span class="label">Last update</span>
+      <time id="lastUpdate"></time>
     </div>
-  </div>
-  <nav class="header-nav">
-    <a href="#overview"    class="nav-btn"><span class="fkey">F1</span>OVERVIEW</a>
-    <a href="#index"       class="nav-btn"><span class="fkey">F2</span>INDEX</a>
-    <a href="#performance" class="nav-btn"><span class="fkey">F3</span>PERFORMANCE</a>
-    <a href="#watches"     class="nav-btn"><span class="fkey">F4</span>WATCHES</a>
-    <a href="#methodology" class="nav-btn"><span class="fkey">F5</span>METHODOLOGY</a>
-  </nav>
-  <div class="header-time">
-    <span class="live-dot"></span>LAST UPDATE: 27 SEP 2026
   </div>
 </header>
 
-<div class="main">
+<main id="main">
 
-<!-- ═══════════════════════════════════════════════════════════ HERO -->
-<section id="overview" class="hero">
+<!-- ═══════════════════════════════════════════════════════════ OVERVIEW -->
+<section id="overview" class="hero container">
   <div class="hero-grid">
-    <div class="hero-left">
-      <div class="hero-tag">◆ LWX  /  OVERVIEW  /  SECONDARY MARKET</div>
-      <div class="hero-title">The Luxury<br><span class="accent">Watch Index</span></div>
-      <div class="hero-desc">A systematic, rules-based measure of secondary market price performance across ten of the most liquid and widely traded references in the luxury watch market. Prices sourced weekly from Chrono24.</div>
-      <div class="hero-stats">
-        <div class="hero-stat">
-          <div class="hero-stat-label">INDEX VALUE</div>
-          <div class="hero-stat-value big">1.1577</div>
-          <div class="hero-stat-change pos">▲ BASE = 1.0000</div>
+    <div class="hero-copy">
+      <p class="kicker">LWX · Secondary market</p>
+      <h1 class="hero-title">
+        <span class="line"><span>The Luxury</span></span>
+        <span class="line"><span class="accent">Watch Index</span></span>
+      </h1>
+      <p class="hero-desc">A systematic, rules-based measure of secondary market price performance across ten of the most liquid and widely traded references in the luxury watch market. Prices sourced weekly from Chrono24.</p>
+
+      <div class="quote">
+        <div class="quote-head">
+          <strong>LWX</strong><span>Index value · Base = 1.0000</span>
+          <span class="quote-date" id="quoteDate" aria-hidden="true"></span>
         </div>
-        <div class="hero-stat">
-          <div class="hero-stat-label">YTD RETURN</div>
-          <div class="hero-stat-value big" style="color:var(--green)">+15.77%</div>
-          <div class="hero-stat-change" style="color:var(--text2)">FROM 26 NOV 2025</div>
-        </div>
-        <div class="hero-stat">
-          <div class="hero-stat-label">CONSTITUENTS</div>
-          <div class="hero-stat-value">10</div>
-          <div class="hero-stat-change" style="color:var(--text2)">EQUALLY WEIGHTED</div>
-        </div>
-        <div class="hero-stat">
-          <div class="hero-stat-label">BEST PERFORMER</div>
-          <div class="hero-stat-value" style="font-size:15px; padding-top:4px; color:var(--green)">PATEK AQUANAUT</div>
-          <div class="hero-stat-change pos">▲ +32.75% YTD</div>
+        <span class="quote-value" id="heroValue" aria-hidden="true"></span>
+        <span class="sr-only" id="heroValueSr"></span>
+        <div class="quote-deltas">
+          <span id="heroYtd"></span>
+          <span id="heroWow"></span>
         </div>
       </div>
+
+      <dl class="hero-meta">
+        <div><dt>Constituents</dt><dd id="heroCount"></dd></div>
+        <div><dt>Best performer</dt><dd id="heroBest"></dd></div>
+      </dl>
     </div>
-    <div class="hero-right">
-      <div class="hero-terminal">
-        <div class="terminal-titlebar">
-          <div class="terminal-dot" style="background:#ff5f57"></div>
-          <div class="terminal-dot" style="background:#febc2e"></div>
-          <div class="terminal-dot" style="background:#28c840"></div>
-          <span class="terminal-label">LWX TERMINAL  ·  INDEX SUMMARY</span>
-        </div>
-        <div class="terminal-body">
-          <div class="terminal-line"><span class="k">FUNCTION</span><span class="v">LUXURY WATCH INDEX</span></div>
-          <div class="terminal-line"><span class="k">TICKER</span><span class="v">LWX</span></div>
-          <div class="terminal-line"><span class="k">INDEX VALUE</span><span class="v">1.1577</span></div>
-          <div class="terminal-line"><span class="k">YTD RETURN</span><span class="v pos">+15.77%</span></div>
-          <div class="terminal-line"><span class="k">WOW CHANGE</span><span class="v pos">+0.95%</span></div>
-          <div class="terminal-line"><span class="k">BASE DATE</span><span class="v">26 NOV 2025</span></div>
-          <div class="terminal-line"><span class="k">LAST UPDATE</span><span class="v">27 SEP 2026</span></div>
-          <div class="terminal-line"><span class="k">CONSTITUENTS</span><span class="v">10 REFERENCES</span></div>
-          <div class="terminal-line"><span class="k">WEIGHTING</span><span class="v">EQUAL WEIGHT</span></div>
-          <div class="terminal-line"><span class="k">PRICE BASIS</span><span class="v">ASK / CHRONO24</span></div>
-          <div class="terminal-line"><span class="k">PERIOD HIGH</span><span class="v pos">1.1577 (27 SEP)</span></div>
-          <div class="terminal-line"><span class="k">PERIOD LOW</span><span class="v neg">0.9945 (04 DEC)</span></div>
-          <div class="terminal-line"><span class="k">STATUS</span><span class="v pos">ACTIVE<span class="cursor"></span></span></div>
-        </div>
-      </div>
-    </div>
+
+    <figure class="hero-visual" id="heroVisual" aria-hidden="true">
+      <svg id="heroChart" role="presentation"></svg>
+    </figure>
+  </div>
+
+  <div class="facts">
+    <h2 class="sr-only">Index summary</h2>
+    <dl class="facts-grid" id="facts"></dl>
   </div>
 </section>
 
 <!-- ═══════════════════════════════════════════════════════════ COMPOSITE INDEX -->
-<section id="index" class="section">
-  <div class="section-head">
-    <div class="section-label">◆ F2</div>
-    <div class="section-title">Composite Index Performance</div>
-    <div class="section-rule"></div>
-    <div class="section-meta">REBASED TO 1.000 · 26 NOV 2025</div>
+<section id="index" class="section container">
+  <header class="section-head">
+    <h2 class="section-title">Composite index performance</h2>
+    <p class="section-note" id="indexNote"></p>
+  </header>
+  <div class="panel">
+    <div class="panel-head">
+      <h3 class="panel-title">LWX — Composite Watch Price Index</h3>
+      <div class="panel-meta" id="indexMeta"></div>
+    </div>
+    <div class="index-chart">
+      <div class="chart-wrap" id="indexChartWrap">
+        <canvas id="indexChart" role="img" aria-label="Line chart of the LWX composite index over time"></canvas>
+      </div>
+    </div>
+    <div class="weeks-head">
+      <h3>Weekly observations</h3>
+      <p>Hover or focus a week to find it on the chart</p>
+    </div>
+    <ol class="weeks" id="weeks"></ol>
   </div>
-  <div class="chart-card">
-    <div class="chart-card-head">
-      <div class="chart-card-title">LWX — COMPOSITE WATCH PRICE INDEX</div>
-      <div class="chart-card-meta">
-        <div class="chart-meta-item">BASE <span>1.0000</span></div>
-        <div class="chart-meta-item">CURRENT <span style="color:var(--orange)">1.1577</span></div>
-        <div class="chart-meta-item">RETURN <span style="color:var(--green)">+15.77%</span></div>
-        <div class="chart-meta-item">OBSERVATIONS <span style="color:var(--orange)">21</span></div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════ PERFORMANCE -->
+<section id="performance" class="section container">
+  <header class="section-head">
+    <h2 class="section-title">Constituent performance</h2>
+    <p class="section-note" id="perfNote"></p>
+  </header>
+  <div class="panel" id="perfPanel">
+    <div class="panel-head">
+      <h3 class="panel-title">Year-to-date performance — all constituents</h3>
+      <div class="panel-meta">
+        <span>Prices in<b>GBP £</b></span>
+        <span>Median of<b>10 ask prices</b></span>
       </div>
     </div>
-    <div class="chart-body">
-      <div class="chart-wrap" style="height:340px;">
-        <canvas id="indexChart"></canvas>
-      </div>
-    </div>
-    <div class="index-metrics">
-      <div class="index-metric">
-        <div class="index-metric-label">26 NOV 2025</div>
-        <div class="index-metric-val gold">1.0000</div>
-        <div class="index-metric-sub">BASE</div>
-      </div>
-      <div class="index-metric">
-        <div class="index-metric-label">04 DEC 2025</div>
-        <div class="index-metric-val neg">0.9945</div>
-        <div class="index-metric-sub">WOW −0.55%</div>
-      </div>
-      <div class="index-metric">
-        <div class="index-metric-label">13 DEC 2025</div>
-        <div class="index-metric-val pos">1.0686</div>
-        <div class="index-metric-sub">WOW +7.41%</div>
-      </div>
-      <div class="index-metric">
-        <div class="index-metric-label">19 DEC 2025</div>
-        <div class="index-metric-val pos">1.0815</div>
-        <div class="index-metric-sub">WOW +1.29%</div>
-      </div>
-      <div class="index-metric">
-        <div class="index-metric-label">08 JAN 2026</div>
-        <div class="index-metric-val pos">1.0825</div>
-        <div class="index-metric-sub">WOW +0.10%</div>
-      </div>
-      <div class="index-metric">
-        <div class="index-metric-label">15 MAR 2026</div>
-        <div class="index-metric-val pos">1.1213</div>
-        <div class="index-metric-sub">WOW +3.88%</div>
-      </div>
-      <div class="index-metric">
-        <div class="index-metric-label">22 MAR 2026</div>
-        <div class="index-metric-val pos">1.1197</div>
-        <div class="index-metric-sub">WOW −0.14%</div>
-      </div>
-      <div class="index-metric">
-        <div class="index-metric-label">29 MAR 2026</div>
-        <div class="index-metric-val pos">1.1234</div>
-        <div class="index-metric-sub">WOW +0.33%</div>
-      </div>
-      <div class="index-metric">
-        <div class="index-metric-label">05 APR 2026</div>
-        <div class="index-metric-val pos">1.1278</div>
-        <div class="index-metric-sub">WOW +0.44%</div>
-      </div>
-      <div class="index-metric">
-        <div class="index-metric-label">12 APR 2026</div>
-        <div class="index-metric-val neg">1.1226</div>
-        <div class="index-metric-sub">WOW −0.52%</div>
-      </div>
-      <div class="index-metric">
-        <div class="index-metric-label">20 APR 2026</div>
-        <div class="index-metric-val pos">1.1352</div>
-        <div class="index-metric-sub">WOW +1.26%</div>
-      </div>
-      <div class="index-metric">
-        <div class="index-metric-label">26 APR 2026</div>
-        <div class="index-metric-val neg">1.1266</div>
-        <div class="index-metric-sub">WOW −0.86%</div>
-      </div>
-      <div class="index-metric">
-        <div class="index-metric-label">03 MAY 2026</div>
-        <div class="index-metric-val neg">1.1255</div>
-        <div class="index-metric-sub">WOW −0.11%</div>
-      </div>
-      <div class="index-metric">
-        <div class="index-metric-label">17 MAY 2026</div>
-        <div class="index-metric-val neg">1.1231</div>
-        <div class="index-metric-sub">WOW −0.21%</div>
-      </div>
-      <div class="index-metric">
-        <div class="index-metric-label">24 MAY 2026</div>
-        <div class="index-metric-val pos">1.1297</div>
-        <div class="index-metric-sub">WOW +0.66%</div>
-      </div>
-      <div class="index-metric">
-        <div class="index-metric-label">14 JUN 2026</div>
-        <div class="index-metric-val pos">1.1436</div>
-        <div class="index-metric-sub">WOW +1.39%</div>
-      </div>
-      <div class="index-metric">
-        <div class="index-metric-label">28 JUN 2026</div>
-        <div class="index-metric-val pos">1.1451</div>
-        <div class="index-metric-sub">WOW +0.15%</div>
-      </div>
-      <div class="index-metric">
-        <div class="index-metric-label">12 JUL 2026</div>
-        <div class="index-metric-val pos">1.1480</div>
-        <div class="index-metric-sub">WOW +0.29%</div>
-      </div>
-      <div class="index-metric">
-        <div class="index-metric-label">26 JUL 2026</div>
-        <div class="index-metric-val neg">1.1434</div>
-        <div class="index-metric-sub">WOW −0.46%</div>
-      </div>
-      <div class="index-metric">
-        <div class="index-metric-label">13 SEP 2026</div>
-        <div class="index-metric-val pos">1.1529</div>
-        <div class="index-metric-sub">WOW +0.95%</div>
-      </div>
-      <div class="index-metric">
-        <div class="index-metric-label">27 SEP 2026</div>
-        <div class="index-metric-val pos">1.1577</div>
-        <div class="index-metric-sub">WOW +0.48%</div>
-      </div>
+    <div class="table-scroll">
+      <table class="perf">
+        <thead>
+          <tr>
+            <th scope="col">#</th>
+            <th scope="col">Watch</th>
+            <th scope="col">Brand</th>
+            <th scope="col" class="r">Base price</th>
+            <th scope="col" class="r">Current</th>
+            <th scope="col" class="r">Change</th>
+            <th scope="col" class="r">WoW</th>
+            <th scope="col" class="r">YTD return</th>
+          </tr>
+        </thead>
+        <tbody id="perfBody"></tbody>
+      </table>
     </div>
   </div>
 </section>
 
-<!-- ═══════════════════════════════════════════════════════════ PERFORMANCE TABLE -->
-<section id="performance" class="section">
-  <div class="section-head">
-    <div class="section-label">◆ F3</div>
-    <div class="section-title">Constituent Performance</div>
-    <div class="section-rule"></div>
-    <div class="section-meta">SORTED BY YTD RETURN · BASE 28 NOV 2025</div>
-  </div>
-  <div class="chart-card">
-    <div class="chart-card-head">
-      <div class="chart-card-title">YEAR-TO-DATE PERFORMANCE — ALL CONSTITUENTS</div>
-      <div class="chart-card-meta">
-        <div class="chart-meta-item">PRICES IN <span>GBP £</span></div>
-        <div class="chart-meta-item">MEDIAN OF <span>10 ASK PRICES</span></div>
-      </div>
-    </div>
-    <table class="perf-table">
-      <thead>
-        <tr>
-          <th style="width:40px">#</th>
-          <th>WATCH</th>
-          <th>BRAND</th>
-          <th class="r">BASE PRICE</th>
-          <th class="r">CURRENT</th>
-          <th class="r">CHANGE</th>
-          <th class="r">WOW</th>
-          <th class="r" style="min-width:220px">YTD RETURN</th>
-        </tr>
-      </thead>
-      <tbody id="perfTableBody"></tbody>
-    </table>
-  </div>
-</section>
-
-<!-- ═══════════════════════════════════════════════════════════ WATCH CHARTS -->
-<section id="watches" class="section">
-  <div class="section-head">
-    <div class="section-label">◆ F4</div>
-    <div class="section-title">Individual Constituent Charts</div>
-    <div class="section-rule"></div>
-    <div class="section-meta">MEDIAN PRICE (GBP) · WEEKLY</div>
-  </div>
+<!-- ═══════════════════════════════════════════════════════════ WATCHES -->
+<section id="watches" class="section container">
+  <header class="section-head">
+    <h2 class="section-title">Individual constituent charts</h2>
+    <p class="section-note">Median price (GBP) · Weekly</p>
+  </header>
   <div class="watch-grid" id="watchGrid"></div>
 </section>
 
 <!-- ═══════════════════════════════════════════════════════════ METHODOLOGY -->
-<section id="methodology" class="section">
-  <div class="section-head">
-    <div class="section-label">◆ F5</div>
-    <div class="section-title">Index Methodology</div>
-    <div class="section-rule"></div>
-  </div>
-  <div class="methodology-grid">
-    <div class="methodology-sidebar">
-      <div class="method-index-item"><span>01</span>DATA SOURCE</div>
-      <div class="method-index-item"><span>02</span>PRICE COLLECTION</div>
-      <div class="method-index-item"><span>03</span>MEDIAN CALCULATION</div>
-      <div class="method-index-item"><span>04</span>NORMALISATION</div>
-      <div class="method-index-item"><span>05</span>COMPOSITE INDEX</div>
-      <div class="method-index-item"><span>06</span>LIMITATIONS</div>
-    </div>
-    <div class="methodology-body">
-      <div class="method-label">◆ INDEX METHODOLOGY  /  RULES-BASED  /  REPRODUCIBLE</div>
-      <p>The Luxury Watch Index employs a systematic, rules-based methodology to track price movements across ten of the most liquid and widely traded references in the secondary luxury watch market. Each week, the ten lowest Ask prices for each constituent watch were sourced from Chrono24, the world's largest online marketplace for luxury timepieces, providing a consistent and reproducible data set. The median of these ten prices was calculated as the representative weekly price for each reference, mitigating the influence of outlier listings and ensuring statistical robustness. Each constituent was then normalised against its base price recorded on 28 November 2025, converting absolute prices into a standardised index of relative performance. The composite index value is derived by calculating the equally-weighted average of all ten normalised constituent values, providing a single quantitative measure of aggregate secondary market performance. It should be noted that index constituents are priced on an Ask basis rather than confirmed transaction prices, which is consistent with standard practice across publicly available secondary watch market indices.</p>
+<section id="methodology" class="section container">
+  <header class="section-head">
+    <h2 class="section-title">Index methodology</h2>
+    <p class="section-note">Rules-based · Reproducible</p>
+  </header>
+  <div class="method">
+    <ol class="steps" id="steps">
+      <li class="step"><span class="step-num">01</span><div><span class="step-title">Data source</span><span class="step-cap">Chrono24 secondary-market listings</span></div></li>
+      <li class="step"><span class="step-num">02</span><div><span class="step-title">Price collection</span><span class="step-cap">The ten lowest ask prices per reference, every week</span></div></li>
+      <li class="step"><span class="step-num">03</span><div><span class="step-title">Median calculation</span><span class="step-cap">Median of the ten asks limits outlier influence</span></div></li>
+      <li class="step"><span class="step-num">04</span><div><span class="step-title">Normalisation</span><span class="step-cap">Each reference rebased to its 28 Nov 2025 price</span></div></li>
+      <li class="step"><span class="step-num">05</span><div><span class="step-title">Composite index</span><span class="step-cap">Equally-weighted average of all ten</span></div></li>
+      <li class="step"><span class="step-num">06</span><div><span class="step-title">Limitations</span><span class="step-cap">Ask prices, not confirmed transactions</span></div></li>
+    </ol>
+    <div class="method-body">
+      <p class="lead">The Luxury Watch Index employs a systematic, rules-based methodology to track price movements across ten of the most liquid and widely traded references in the secondary luxury watch market.</p>
+      <p>Each week, the ten lowest Ask prices for each constituent watch were sourced from Chrono24, the world's largest online marketplace for luxury timepieces, providing a consistent and reproducible data set. The median of these ten prices was calculated as the representative weekly price for each reference, mitigating the influence of outlier listings and ensuring statistical robustness.</p>
+      <p>Each constituent was then normalised against its base price recorded on 28 November 2025, converting absolute prices into a standardised index of relative performance. The composite index value is derived by calculating the equally-weighted average of all ten normalised constituent values, providing a single quantitative measure of aggregate secondary market performance.</p>
+      <p class="method-note"><strong>Limitations</strong>It should be noted that index constituents are priced on an Ask basis rather than confirmed transaction prices, which is consistent with standard practice across publicly available secondary watch market indices.</p>
     </div>
   </div>
 </section>
 
-</div><!-- /main -->
+</main>
 
 <!-- ═══════════════════════════════════════════════════════════ FOOTER -->
-<footer class="footer">
-  <div class="footer-left">
-    <div class="footer-badge">LWX</div>
-    <div class="footer-text">THE LUXURY WATCH INDEX  ·  SECONDARY MARKET PRICE TRACKING</div>
+<footer class="site-footer">
+  <div class="container footer-inner">
+    <div class="footer-brand">
+      <span class="brand-mark">LWX</span>
+      <span>The Luxury Watch Index · Secondary market price tracking</span>
+    </div>
+    <p>Data: Chrono24 · Not financial advice · Prices in GBP</p>
   </div>
-  <div class="footer-right">DATA: CHRONO24  ·  NOT FINANCIAL ADVICE  ·  PRICES IN GBP</div>
 </footer>
 
 <script>
 // ══════════════════════════════════════════════════════════════════════
 //  DATA
+//  Everything on the page (hero, key facts, ticker, tables, charts) is
+//  generated from these arrays. To add a week, append one entry to each
+//  INDEX array, one date to DATES and one median to each watch.
 // ══════════════════════════════════════════════════════════════════════
 
 const INDEX = {
@@ -957,287 +772,712 @@ const WATCHES = [
 function fmt(n)    { return '£' + Math.round(n).toLocaleString('en-GB'); }
 function ytd(w)    { return ((w.medians[w.medians.length-1] - w.medians[0]) / w.medians[0]) * 100; }
 function wow(w)    { const l = w.medians.length; return ((w.medians[l-1] - w.medians[l-2]) / w.medians[l-2]) * 100; }
-function pct(n,dp) { const d = dp ?? 2; return (n >= 0 ? '+' : '') + n.toFixed(d) + '%'; }
+function pct(n,dp) { const d = dp ?? 2; return (n >= 0 ? '+' : '−') + Math.abs(n).toFixed(d) + '%'; }
 function cls(n)    { return n >= 0 ? 'pos' : 'neg'; }
+function arrow(n)  { return `<span class="arr" aria-hidden="true">${n >= 0 ? '▲' : '▼'}</span>`; }
+function title(s)  { return s.toLowerCase().replace(/\b\w/g, c => c.toUpperCase()); }
+function slug(s)   { return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }
+function dayMon(s) { return s.replace(/ \d{4}$/, ''); }
+const $ = id => document.getElementById(id);
+
+const REDUCE = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const MOTION = document.documentElement.classList.contains('motion');
+
+// Derived headline figures: computed from the data so they never go stale.
+const LAST = INDEX.values.length - 1;
+const SUMMARY = (() => {
+  const v   = INDEX.values;
+  const hiI = v.indexOf(Math.max(...v));
+  const loI = v.indexOf(Math.min(...v));
+  const ranked = [...WATCHES].sort((a, b) => ytd(b) - ytd(a));
+  return {
+    value: v[LAST], ytd: INDEX.ytd[LAST], wow: INDEX.wow[LAST],
+    base: INDEX.labels[0], updated: INDEX.labels[LAST],
+    hi: v[hiI], hiDate: INDEX.labels[hiI], lo: v[loI], loDate: INDEX.labels[loI],
+    obs: v.length, ranked, best: ranked[0],
+  };
+})();
 
 // ══════════════════════════════════════════════════════════════════════
-//  CHART.JS DEFAULTS
+//  RENDER: header, hero, key facts
 // ══════════════════════════════════════════════════════════════════════
-Chart.defaults.color       = '#3e5570';
-Chart.defaults.borderColor = '#1c2d40';
-Chart.defaults.font.family = "'Roboto Mono', monospace";
-Chart.defaults.font.size   = 11;
+(function renderSummary() {
+  const S = SUMMARY;
+  $('lastUpdate').textContent = S.updated;
+  $('brandSub').textContent   = `Secondary market · ${WATCHES.length} constituents · Weekly snapshot`;
 
-const TOOLTIP_DEFAULTS = {
-  backgroundColor: '#0f1520',
-  borderColor:     '#243648',
-  borderWidth:     1,
-  titleColor:      '#f5a200',
-  bodyColor:       '#c8d8e8',
-  padding:         12,
-  cornerRadius:    0,
-  titleFont: { family: "'Roboto Mono', monospace", size: 11 },
-  bodyFont:  { family: "'Roboto Mono', monospace", size: 11 },
-};
+  $('heroValue').textContent   = S.value.toFixed(4);
+  $('quoteDate').textContent   = S.updated;
+  $('heroValueSr').textContent = `LWX index value ${S.value.toFixed(4)} as of ${S.updated}.`;
+  $('heroYtd').innerHTML = `<b class="${cls(S.ytd)}">${arrow(S.ytd)}${pct(S.ytd)}</b>since ${S.base}`;
+  $('heroWow').innerHTML = `<b class="${cls(S.wow)}">${pct(S.wow)}</b>week on week`;
+  $('heroCount').textContent = `${WATCHES.length} · equally weighted`;
+  $('heroBest').innerHTML = `${S.best.name}<span class="pos">${pct(ytd(S.best))}</span>`;
+
+  const facts = [
+    ['Ticker',        'LWX'],
+    ['Index value',   S.value.toFixed(4)],
+    ['YTD return',    `<span class="${cls(S.ytd)}">${pct(S.ytd)}</span>`],
+    ['Week on week',  `<span class="${cls(S.wow)}">${pct(S.wow)}</span>`],
+    ['Period high',   `${S.hi.toFixed(4)} <small>${dayMon(S.hiDate)}</small>`],
+    ['Period low',    `${S.lo.toFixed(4)} <small>${dayMon(S.loDate)}</small>`],
+    ['Base date',     S.base],
+    ['Last update',   S.updated],
+    ['Constituents',  `${WATCHES.length} references`],
+    ['Weighting',     'Equal weight'],
+    ['Price basis',   'Ask · Chrono24'],
+    ['Status',        '<span class="live-dot" aria-hidden="true"></span>Active'],
+  ];
+  $('facts').innerHTML = facts.map(([k, v], i) =>
+    `<div class="fact" style="--i:${i}"><dt>${k}</dt><dd>${v}</dd></div>`).join('');
+
+  $('indexNote').textContent = `Rebased to 1.000 · ${S.base}`;
+  $('perfNote').textContent  = `Sorted by YTD return · Base ${DATES[0]}`;
+  $('indexMeta').innerHTML = `
+    <span>Base<b>1.0000</b></span>
+    <span>Current<b class="gold">${S.value.toFixed(4)}</b></span>
+    <span>Return<b class="${cls(S.ytd)}">${pct(S.ytd)}</b></span>
+    <span>Observations<b>${S.obs}</b></span>`;
+})();
 
 // ══════════════════════════════════════════════════════════════════════
 //  TICKER
 // ══════════════════════════════════════════════════════════════════════
 (function buildTicker() {
   const items = [
-    { label: 'LWX INDEX', val: '1.1577', chg: '+15.77%', pos: true },
-    ...WATCHES.map(w => ({
-      label: w.short,
-      val:   fmt(w.medians[w.medians.length - 1]),
-      chg:   pct(ytd(w)),
-      pos:   ytd(w) >= 0,
-    }))
+    { label: 'LWX INDEX', val: SUMMARY.value.toFixed(4), chg: SUMMARY.ytd },
+    ...WATCHES.map(w => ({ label: w.short, val: fmt(w.medians[w.medians.length - 1]), chg: ytd(w) })),
   ];
-  const all   = [...items, ...items];
-  const track = document.getElementById('tickerTrack');
-  track.innerHTML = all.map(i => `
-    <div class="ticker-item">
+  const set = items.map(i => `
+    <span class="ticker-item">
       <span class="ticker-name">${i.label}</span>
       <span class="ticker-val">${i.val}</span>
-      <span class="ticker-chg ${i.pos ? 'pos' : 'neg'}">${i.chg}</span>
-    </div>`).join('');
+      <span class="ticker-chg ${cls(i.chg)}">${pct(i.chg)}</span>
+    </span>`).join('');
+  $('tickerTrack').innerHTML =
+    `<div class="ticker-set">${set}</div><div class="ticker-set" aria-hidden="true">${set}</div>`;
 })();
 
 // ══════════════════════════════════════════════════════════════════════
-//  COMPOSITE INDEX CHART
+//  WEEKLY OBSERVATIONS
 // ══════════════════════════════════════════════════════════════════════
-(function buildIndexChart() {
-  const ctx  = document.getElementById('indexChart').getContext('2d');
-  const grad = ctx.createLinearGradient(0, 0, 0, 340);
-  grad.addColorStop(0,   'rgba(245,162,0,0.22)');
-  grad.addColorStop(0.6, 'rgba(245,162,0,0.05)');
-  grad.addColorStop(1,   'rgba(245,162,0,0.00)');
-
-  new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: INDEX.labels,
-      datasets: [
-        {
-          label:               'LWX Index',
-          data:                INDEX.values,
-          borderColor:         '#f5a200',
-          backgroundColor:     grad,
-          pointBackgroundColor:'#f5a200',
-          pointBorderColor:    '#07090e',
-          pointBorderWidth:    2,
-          pointRadius:         5,
-          pointHoverRadius:    8,
-          borderWidth:         2,
-          fill:                true,
-          tension:             0.3,
-          z: 2,
-        },
-        {
-          label:       'Base (1.000)',
-          data: Array(21).fill(1.000),
-          borderColor: 'rgba(255,255,255,0.12)',
-          borderWidth: 1,
-          borderDash:  [6, 4],
-          pointRadius: 0,
-          fill:        false,
-          tension:     0,
-          z: 1,
-        }
-      ]
-    },
-    options: {
-      responsive:          true,
-      maintainAspectRatio: false,
-      interaction: { mode: 'index', intersect: false },
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          ...TOOLTIP_DEFAULTS,
-          callbacks: {
-            title: items => items[0].label,
-            label: ctx => {
-              if (ctx.datasetIndex === 1) return null;
-              const v    = ctx.raw;
-              const ytdV = ((v - 1) * 100).toFixed(2);
-              const wow_ = INDEX.wow[ctx.dataIndex];
-              return [
-                `INDEX : ${v.toFixed(4)}`,
-                `YTD   : ${ytdV >= 0 ? '+' : ''}${ytdV}%`,
-                `WOW   : ${wow_ >= 0 ? '+' : ''}${wow_}%`,
-              ];
-            },
-            labelColor: () => ({ backgroundColor: '#f5a200', borderColor: '#f5a200' }),
-          }
-        }
-      },
-      scales: {
-        x: {
-          grid:  { color: 'rgba(28,45,64,0.8)' },
-          ticks: { color: '#3e5570', font: { size: 10 }, maxRotation: 0 }
-        },
-        y: {
-          grid:  { color: 'rgba(28,45,64,0.8)' },
-          ticks: { color: '#3e5570', font: { size: 10 }, callback: v => v.toFixed(3) },
-          min: 0.970,
-          max: 1.180,
-        }
-      }
-    }
-  });
+(function buildWeeks() {
+  $('weeks').innerHTML = INDEX.labels.map((d, i) => {
+    const chg = i === 0
+      ? '<span class="week-chg base">Base</span>'
+      : `<span class="week-chg ${cls(INDEX.wow[i])}">WoW ${pct(INDEX.wow[i])}</span>`;
+    return `<li class="week${i === LAST ? ' is-latest' : ''}" data-i="${i}" tabindex="0" style="--d:${i * 22}ms">
+      <span class="week-date">${d}</span>
+      <span class="week-val">${INDEX.values[i].toFixed(4)}</span>
+      ${chg}
+    </li>`;
+  }).join('');
 })();
 
 // ══════════════════════════════════════════════════════════════════════
 //  PERFORMANCE TABLE
 // ══════════════════════════════════════════════════════════════════════
 (function buildPerfTable() {
-  const sorted     = [...WATCHES].sort((a, b) => ytd(b) - ytd(a));
-  const maxAbs     = Math.max(...sorted.map(w => Math.abs(ytd(w))));
-  const rankLabels = ['gold', 'silver', 'bronze'];
-  const tbody      = document.getElementById('perfTableBody');
+  const sorted = SUMMARY.ranked;
+  const maxAbs = Math.max(...sorted.map(w => Math.abs(ytd(w))));
 
-  sorted.forEach((w, i) => {
-    const y      = ytd(w);
-    const w_     = wow(w);
-    const chg    = w.medians[w.medians.length - 1] - w.medians[0];
-    const bw     = Math.round((Math.abs(y) / maxAbs) * 100);
-    const rk     = i < 3 ? rankLabels[i] : 'n';
-    const rkLabel= ['01','02','03','04','05','06','07','08','09','10'][i];
-
-    tbody.innerHTML += `
-      <tr>
-        <td class="rank-cell ${rk}">${rkLabel}</td>
-        <td>
-          <div class="watch-cell-name">${w.name}</div>
-          <div class="watch-cell-ref">${w.ref}</div>
+  $('perfBody').innerHTML = sorted.map((w, i) => {
+    const y   = ytd(w);
+    const w_  = wow(w);
+    const chg = w.medians[w.medians.length - 1] - w.medians[0];
+    const bw  = (Math.abs(y) / maxAbs) * 100;
+    const rk  = i === 0 ? 'rank first' : i < 3 ? 'rank top' : 'rank';
+    return `
+      <tr style="--d:${i * 55}ms">
+        <td class="${rk} c-rank">${String(i + 1).padStart(2, '0')}</td>
+        <td class="c-watch">
+          <a class="watch-link" href="#watch-${slug(w.short)}">${w.name}</a>
+          <span class="watch-ref">${w.ref}</span>
         </td>
-        <td><span class="brand-pill">${w.brand}</span></td>
-        <td class="r"><span class="price-mono">${fmt(w.medians[0])}</span></td>
-        <td class="r"><span class="price-mono">${fmt(w.medians[w.medians.length-1])}</span></td>
-        <td class="r"><span class="price-mono ${cls(chg)}">${chg >= 0 ? '+' : ''}${fmt(Math.abs(chg)).replace('£','£')}</span></td>
-        <td class="r"><span class="wow-num ${cls(w_)}">${pct(w_)}</span></td>
-        <td class="r">
-          <div class="ytd-cell">
-            <div class="bar-bg"><div class="bar-fg ${y >= 0 ? 'bar-pos' : 'bar-neg'}" style="width:${bw}%"></div></div>
+        <td class="brand-cell c-brand">${title(w.brand)}</td>
+        <td class="r price c-base" data-label="Base">${fmt(w.medians[0])}</td>
+        <td class="r price c-cur" data-label="Current">${fmt(w.medians[w.medians.length - 1])}</td>
+        <td class="r c-chg ${cls(chg)}" data-label="Change">${chg >= 0 ? '+' : '−'}${fmt(Math.abs(chg))}</td>
+        <td class="r c-wow ${cls(w_)}" data-label="WoW">${pct(w_)}</td>
+        <td class="r c-ytd">
+          <div class="ytd">
+            <div class="bar"><div class="bar-fill ${cls(y)}" style="--w:${bw.toFixed(1)}%"></div></div>
             <span class="ytd-num ${cls(y)}">${pct(y)}</span>
           </div>
         </td>
       </tr>`;
+  }).join('');
+})();
+
+// ══════════════════════════════════════════════════════════════════════
+//  WATCH CARDS (markup; charts are drawn below)
+// ══════════════════════════════════════════════════════════════════════
+(function buildWatchCards() {
+  $('watchGrid').innerHTML = WATCHES.map((w, idx) => {
+    const y  = ytd(w);
+    const w_ = wow(w);
+    return `
+      <article class="watch" id="watch-${slug(w.short)}" style="--d:${(idx % 2) * 90}ms">
+        <header class="watch-head">
+          <div>
+            <h3 class="watch-name">${w.name}</h3>
+            <p class="watch-meta">${w.ref} · ${title(w.brand)}</p>
+          </div>
+          <div class="watch-price">
+            <span class="watch-current">${fmt(w.medians[w.medians.length - 1])}</span>
+            <span class="watch-ytd ${cls(y)}">${arrow(y)}${pct(y)}<span>YTD</span></span>
+          </div>
+        </header>
+        <div class="watch-chart">
+          <canvas id="wc${idx}" role="img" aria-label="${w.name} median price, ${DATES[0]} to ${DATES[DATES.length - 1]}"></canvas>
+        </div>
+        <dl class="watch-stats">
+          <div><dt>Base</dt><dd>${fmt(w.medians[0])}</dd></div>
+          <div><dt>WoW</dt><dd class="${cls(w_)}">${pct(w_)}</dd></div>
+          <div><dt>High</dt><dd>${fmt(Math.max(...w.medians))}</dd></div>
+          <div><dt>Low</dt><dd>${fmt(Math.min(...w.medians))}</dd></div>
+        </dl>
+      </article>`;
+  }).join('');
+})();
+
+// ══════════════════════════════════════════════════════════════════════
+//  HERO CHART (SVG) + index replay
+// ══════════════════════════════════════════════════════════════════════
+const heroChart = (function () {
+  const fig  = $('heroVisual');
+  const svg  = $('heroChart');
+  const vals = INDEX.values;
+  const n    = vals.length;
+  const lo   = Math.min(...vals), hi = Math.max(...vals), span = hi - lo;
+  const yMin = lo - span * 0.2, yMax = hi + span * 0.16;
+  let geom = null, replaying = false, cancel = null;
+
+  // Monotone cubic interpolation (same shape Chart.js draws with 'monotone').
+  function monotonePath(p) {
+    const k = p.length, m = [], t = [];
+    for (let i = 0; i < k - 1; i++) m[i] = (p[i + 1][1] - p[i][1]) / (p[i + 1][0] - p[i][0]);
+    t[0] = m[0]; t[k - 1] = m[k - 2];
+    for (let i = 1; i < k - 1; i++) t[i] = m[i - 1] * m[i] <= 0 ? 0 : (m[i - 1] + m[i]) / 2;
+    for (let i = 0; i < k - 1; i++) {
+      if (m[i] === 0) { t[i] = t[i + 1] = 0; continue; }
+      const a = t[i] / m[i], b = t[i + 1] / m[i], s = a * a + b * b;
+      if (s > 9) { const r = 3 / Math.sqrt(s); t[i] = r * a * m[i]; t[i + 1] = r * b * m[i]; }
+    }
+    let d = `M${p[0][0].toFixed(1)},${p[0][1].toFixed(1)}`;
+    for (let i = 0; i < k - 1; i++) {
+      const h = (p[i + 1][0] - p[i][0]) / 3;
+      d += ` C${(p[i][0] + h).toFixed(1)},${(p[i][1] + t[i] * h).toFixed(1)} ${(p[i + 1][0] - h).toFixed(1)},${(p[i + 1][1] - t[i + 1] * h).toFixed(1)} ${p[i + 1][0].toFixed(1)},${p[i + 1][1].toFixed(1)}`;
+    }
+    return d;
+  }
+
+  function draw() {
+    const w = fig.clientWidth, h = fig.clientHeight;
+    if (!w || !h) return;
+    const pad = { t: 28, r: 60, b: 34, l: 2 };
+    const stepX = (w - pad.l - pad.r) / (n - 1);
+    const X = i => pad.l + i * stepX;
+    const Y = v => pad.t + (yMax - v) / (yMax - yMin) * (h - pad.t - pad.b);
+    const pts = vals.map((v, i) => [X(i), Y(v)]);
+    const d   = monotonePath(pts);
+    const end = pts[n - 1];
+    const floor = h - pad.b;
+
+    const ticks = [];
+    for (let t = Math.ceil(yMin * 20) / 20; t <= yMax + 1e-9; t += 0.05) ticks.push(+t.toFixed(2));
+
+    svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    svg.innerHTML = `
+      <defs>
+        <linearGradient id="hcFill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" class="hc-stop-a"/><stop offset="1" class="hc-stop-b"/>
+        </linearGradient>
+        <clipPath id="hcClip"><rect x="0" y="0" width="${w}" height="${h}"/></clipPath>
+      </defs>
+      <g class="hc-grid">
+        ${ticks.map(t => `
+          <line x1="0" x2="${w}" y1="${Y(t).toFixed(1)}" y2="${Y(t).toFixed(1)}" class="${t === 1 ? 'is-base' : ''}"/>
+          <text x="${w}" y="${(Y(t) - 7).toFixed(1)}" text-anchor="end">${t === 1 ? 'Base 1.00' : t.toFixed(2)}</text>`).join('')}
+      </g>
+      <g class="hc-axis">
+        <text x="${pts[0][0]}" y="${h - 8}">${INDEX.labels[0]}</text>
+        <text x="${end[0]}" y="${h - 8}" text-anchor="end">${INDEX.labels[n - 1]}</text>
+      </g>
+      <path class="hc-area" clip-path="url(#hcClip)" d="${d} L${end[0].toFixed(1)},${floor} L${pts[0][0].toFixed(1)},${floor} Z"/>
+      <path class="hc-line" d="${d}"/>
+      <g class="hc-head" transform="translate(${end[0].toFixed(1)},${end[1].toFixed(1)})">
+        <circle class="hc-pulse" r="5"/>
+        <circle class="hc-ring" r="7"/>
+        <circle class="hc-dot" r="4.5"/>
+        <text class="hc-label" x="0" y="-16" text-anchor="middle">${vals[n - 1].toFixed(4)}</text>
+      </g>`;
+    geom = { stepX, x0: pad.l };
+  }
+
+  function setValue(v, date) {
+    $('heroValue').textContent = v.toFixed(4);
+    $('quoteDate').textContent = date;
+  }
+
+  // Replays the index from its base date: the line draws in while the
+  // headline figure and date track the value under the moving point.
+  function replay(delay = 0) {
+    if (!geom) return;
+    const line  = svg.querySelector('.hc-line');
+    const head  = svg.querySelector('.hc-head');
+    const label = head.querySelector('.hc-label');
+    const clip  = svg.querySelector('#hcClip rect');
+    const L     = line.getTotalLength();
+    const dur   = 2600;
+    const t0    = performance.now() + delay;
+    let raf;
+
+    replaying = true;
+    fig.classList.remove('is-done');
+    line.style.strokeDasharray  = `${L} ${L}`;
+    line.style.strokeDashoffset = L;
+
+    const finish = () => {
+      replaying = false;
+      cancelAnimationFrame(raf);
+      line.style.strokeDasharray = line.style.strokeDashoffset = '';
+      draw();
+      setValue(vals[n - 1], INDEX.labels[n - 1]);
+      fig.classList.add('is-done');
+    };
+    cancel = finish;
+
+    const frame = now => {
+      const t = Math.min(1, Math.max(0, (now - t0) / dur));
+      const e = 1 - Math.pow(1 - t, 3);
+      const len = L * e;
+      const p = line.getPointAtLength(len);
+      line.style.strokeDashoffset = L - len;
+      clip.setAttribute('width', Math.max(0, p.x));
+      head.setAttribute('transform', `translate(${p.x.toFixed(1)},${p.y.toFixed(1)})`);
+      const fi = Math.min(n - 1, Math.max(0, (p.x - geom.x0) / geom.stepX));
+      const i0 = Math.floor(fi), i1 = Math.min(n - 1, i0 + 1);
+      const v  = vals[i0] + (vals[i1] - vals[i0]) * (fi - i0);
+      label.textContent = v.toFixed(4);
+      setValue(v, INDEX.labels[Math.round(fi)]);
+      if (t < 1) raf = requestAnimationFrame(frame); else finish();
+    };
+    raf = requestAnimationFrame(frame);
+  }
+
+  draw();
+  let lastW = fig.clientWidth, lastH = fig.clientHeight;
+  new ResizeObserver(() => {
+    const w = fig.clientWidth, h = fig.clientHeight;
+    if (w === lastW && h === lastH) return;
+    lastW = w; lastH = h;
+    if (replaying && cancel) cancel(); else draw();
+  }).observe(fig);
+
+  if (MOTION) replay(420); else fig.classList.add('is-done');
+  return { redraw: draw };
+})();
+
+// ══════════════════════════════════════════════════════════════════════
+//  CHART.JS
+// ══════════════════════════════════════════════════════════════════════
+const C = {
+  surface: '#101725', bg: '#0a101d', bg3: '#161e2d', lineSoft: '#1e2533', line: '#2a3342',
+  ink: '#f3f0ea', ink2: '#b8bec7', ink3: '#8e96a0', ink4: '#616a75',
+  gold: '#deb870', goldHi: '#efd18f',
+};
+const SANS = "'Hanken Grotesk', system-ui, sans-serif";
+const CHARTS = [];
+
+// Clips dataset drawing to a left-to-right progress (chart.$reveal, 0 → 1),
+// so the line draws in while axes and gridlines stay put.
+const revealPlugin = {
+  id: 'reveal',
+  beforeDatasetsDraw(chart) {
+    const p = chart.$reveal ?? 1;
+    if (p >= 1) return;
+    const { ctx, chartArea: a } = chart;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(a.left - 8, a.top - 12, (a.right - a.left + 16) * p, a.bottom - a.top + 24);
+    ctx.clip();
+    chart.$clipped = true;
+  },
+  afterDatasetsDraw(chart) {
+    if (chart.$clipped) { chart.ctx.restore(); chart.$clipped = false; }
+  },
+};
+
+// Vertical hairline under the hovered observation.
+const crosshairPlugin = {
+  id: 'crosshair',
+  beforeDatasetsDraw(chart) {
+    const active = chart.tooltip?.getActiveElements?.() ?? [];
+    if (!active.length) return;
+    const x = active[0].element.x;
+    const { ctx, chartArea: { top, bottom } } = chart;
+    ctx.save();
+    ctx.strokeStyle = C.line;
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(Math.round(x) + .5, top); ctx.lineTo(Math.round(x) + .5, bottom); ctx.stroke();
+    ctx.restore();
+  },
+};
+
+function playReveal(chart, duration) {
+  if (!chart) return;
+  const start = performance.now();
+  chart.$reveal = 0;
+  const tick = now => {
+    const t = Math.min(1, (now - start) / duration);
+    chart.$reveal = 1 - Math.pow(1 - t, 3);
+    chart.draw();
+    if (t < 1) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
+function goldFill(context, top = .20) {
+  const { chart } = context;
+  const a = chart.chartArea;
+  if (!a) return 'transparent';
+  const g = chart.ctx.createLinearGradient(0, a.top, 0, a.bottom);
+  g.addColorStop(0, `rgba(222,184,112,${top})`);
+  g.addColorStop(1, 'rgba(222,184,112,0)');
+  return g;
+}
+
+const TOOLTIP = {
+  backgroundColor: C.bg3,
+  borderColor:     C.line,
+  borderWidth:     1,
+  titleColor:      C.ink,
+  bodyColor:       C.ink2,
+  padding:         { x: 12, y: 10 },
+  cornerRadius:    8,
+  caretSize:       0,
+  caretPadding:    12,
+  displayColors:   false,
+  titleFont:       { family: SANS, size: 12.5, weight: '600' },
+  bodyFont:        { family: SANS, size: 12.5 },
+  bodySpacing:     3,
+  filter:          item => item.datasetIndex === 0,
+};
+
+function priceTick(value, index, ticks) {
+  const step = ticks.length > 1 ? Math.abs(ticks[1].value - ticks[0].value) : 1000;
+  if (value < 1000) return '£' + value;
+  return '£' + (value / 1000).toFixed(step < 1000 ? 1 : 0) + 'k';
+}
+
+let indexChart = null;
+
+if (window.Chart) {
+  Chart.defaults.color       = C.ink3;
+  Chart.defaults.borderColor = C.lineSoft;
+  Chart.defaults.font.family = SANS;
+  Chart.defaults.font.size   = 11.5;
+
+  // ── Composite index ─────────────────────────────────────────────────
+  indexChart = new Chart($('indexChart'), {
+    type: 'line',
+    data: {
+      labels: INDEX.labels,
+      datasets: [
+        {
+          label:                'LWX Index',
+          data:                 INDEX.values,
+          borderColor:          C.gold,
+          backgroundColor:      ctx => goldFill(ctx, .18),
+          borderWidth:          2,
+          fill:                 true,
+          cubicInterpolationMode: 'monotone',
+          pointRadius:          ctx => ctx.dataIndex === LAST ? 4.5 : 0,
+          pointHoverRadius:     5.5,
+          pointHitRadius:       14,
+          pointBackgroundColor: C.goldHi,
+          pointBorderColor:     C.surface,
+          pointBorderWidth:     2,
+          pointHoverBorderWidth: 2,
+        },
+        {
+          label:       'Base (1.000)',
+          data:        INDEX.values.map(() => 1),
+          borderColor: C.ink4,
+          borderWidth: 1,
+          borderDash:  [3, 5],
+          pointRadius: 0,
+          pointHitRadius: 0,
+          fill:        false,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      interaction: { mode: 'index', intersect: false },
+      onHover: (evt, els) => markWeek(els.length ? els[0].index : -1),
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          ...TOOLTIP,
+          callbacks: {
+            title: items => items[0].label,
+            label: ctx => {
+              const i = ctx.dataIndex;
+              return [
+                `Index  ${ctx.raw.toFixed(4)}`,
+                `YTD  ${pct((ctx.raw - 1) * 100)}`,
+                i === 0 ? 'Base observation' : `WoW  ${pct(INDEX.wow[i])}`,
+              ];
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          grid:   { display: false },
+          border: { color: C.line },
+          ticks:  { maxRotation: 0, autoSkipPadding: 24, callback(v) { return dayMon(this.getLabelForValue(v)); } },
+        },
+        y: {
+          grid:   { color: C.lineSoft },
+          border: { display: false },
+          ticks:  { padding: 10, maxTicksLimit: 6, callback: v => v.toFixed(3) },
+          suggestedMin: 0.97,
+          suggestedMax: 1.18,
+        },
+      },
+    },
+    plugins: [crosshairPlugin, revealPlugin],
+  });
+  CHARTS.push(indexChart);
+
+  // ── Individual watches ───────────────────────────────────────────────
+  WATCHES.forEach((w, idx) => {
+    const base = w.medians[0];
+    const last = w.medians.length - 1;
+    const chart = new Chart($(`wc${idx}`), {
+      type: 'line',
+      data: {
+        labels: DATES,
+        datasets: [
+          {
+            data:                 w.medians,
+            borderColor:          C.gold,
+            backgroundColor:      ctx => goldFill(ctx, .16),
+            borderWidth:          2,
+            fill:                 true,
+            cubicInterpolationMode: 'monotone',
+            pointRadius:          ctx => ctx.dataIndex === last ? 4 : 0,
+            pointHoverRadius:     5,
+            pointHitRadius:       12,
+            pointBackgroundColor: C.goldHi,
+            pointBorderColor:     C.surface,
+            pointBorderWidth:     2,
+            pointHoverBorderWidth: 2,
+          },
+          {
+            data:        w.medians.map(() => base),
+            borderColor: C.ink4,
+            borderWidth: 1,
+            borderDash:  [3, 5],
+            pointRadius: 0,
+            pointHitRadius: 0,
+            fill:        false,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            ...TOOLTIP,
+            callbacks: {
+              title: items => items[0].label,
+              label: ctx => {
+                const rel = (ctx.raw - base) / base * 100;
+                return [`${fmt(ctx.raw)}  ·  ${pct(rel)} vs base`];
+              },
+            },
+          },
+        },
+        scales: {
+          x: {
+            grid:   { display: false },
+            border: { color: C.line },
+            ticks:  { maxRotation: 0, autoSkipPadding: 20, font: { size: 11 }, callback(v) { return dayMon(this.getLabelForValue(v)); } },
+          },
+          y: {
+            grid:   { color: C.lineSoft },
+            border: { display: false },
+            ticks:  { padding: 8, maxTicksLimit: 4, font: { size: 11 }, callback: priceTick },
+            grace:  '8%',
+          },
+        },
+      },
+      plugins: [crosshairPlugin, revealPlugin],
+    });
+    CHARTS.push(chart);
+  });
+
+  // Canvas text doesn't re-render when web fonts arrive; redraw once they have.
+  if (document.fonts?.ready) document.fonts.ready.then(() => CHARTS.forEach(c => c.update('none')));
+}
+
+// ── Weekly cells ↔ index chart ────────────────────────────────────────
+function markWeek(i) {
+  document.querySelectorAll('.week.is-active').forEach(el => el.classList.remove('is-active'));
+  if (i >= 0) document.querySelector(`.week[data-i="${i}"]`)?.classList.add('is-active');
+}
+function focusPoint(i) {
+  if (!indexChart) return;
+  if (i < 0) {
+    indexChart.setActiveElements([]);
+    indexChart.tooltip.setActiveElements([], { x: 0, y: 0 });
+  } else {
+    const pt = indexChart.getDatasetMeta(0).data[i];
+    const active = [{ datasetIndex: 0, index: i }];
+    indexChart.setActiveElements(active);
+    indexChart.tooltip.setActiveElements(active, { x: pt.x, y: pt.y });
+  }
+  indexChart.update('none');
+  markWeek(i);
+}
+(function linkWeeks() {
+  const list = $('weeks');
+  const idx  = e => { const li = e.target.closest?.('.week'); return li ? +li.dataset.i : null; };
+  list.addEventListener('pointerover', e => { const i = idx(e); if (i !== null) focusPoint(i); });
+  list.addEventListener('pointerleave', () => focusPoint(-1));
+  list.addEventListener('focusin',  e => { const i = idx(e); if (i !== null) focusPoint(i); });
+  list.addEventListener('focusout', e => { if (!list.contains(e.relatedTarget)) focusPoint(-1); });
+})();
+
+// ══════════════════════════════════════════════════════════════════════
+//  SCROLL REVEALS
+//  Content is visible by default. With motion enabled, elements below the
+//  fold are marked pending and revealed once as they scroll into view.
+// ══════════════════════════════════════════════════════════════════════
+(function scrollReveals() {
+  if (!MOTION) return;
+  const callbacks = new Map();
+  const io = new IntersectionObserver(entries => {
+    for (const e of entries) {
+      if (!e.isIntersecting) continue;
+      io.unobserve(e.target);
+      e.target.classList.remove('is-pending');
+      callbacks.get(e.target)?.();
+    }
+  }, { rootMargin: '0px 0px -12% 0px', threshold: 0.1 });
+
+  function watch(el, onReveal, charts = []) {
+    if (!el) return;
+    el.classList.add('is-pending');
+    charts.forEach(c => { if (c) c.$reveal = 0; });
+    charts.forEach(c => c?.draw());
+    if (onReveal) callbacks.set(el, onReveal);
+    io.observe(el);
+  }
+
+  watch($('indexChartWrap'), () => playReveal(indexChart, 1800), [indexChart]);
+  watch($('weeks'));
+  watch($('perfPanel'));
+  document.querySelectorAll('.watch').forEach((card, idx) => {
+    const chart = CHARTS[idx + 1];
+    const delay = (idx % 2) * 90 + 160;
+    watch(card, () => setTimeout(() => playReveal(chart, 1300), delay), [chart]);
+  });
+
+  // Never leave anything hidden when printing.
+  addEventListener('beforeprint', () => {
+    document.querySelectorAll('.is-pending').forEach(el => el.classList.remove('is-pending'));
+    CHARTS.forEach(c => { c.$reveal = 1; c.draw(); });
   });
 })();
 
 // ══════════════════════════════════════════════════════════════════════
-//  INDIVIDUAL WATCH CHARTS
+//  SCROLL-LINKED: progress bar, sticky header, section nav, hero
+//  parallax, methodology rail
 // ══════════════════════════════════════════════════════════════════════
-(function buildWatchCharts() {
-  const grid = document.getElementById('watchGrid');
+(function scrollEffects() {
+  const progress  = $('progress');
+  const header    = $('siteHeader');
+  const nav       = $('nav');
+  const indicator = $('navIndicator');
+  const links     = [...nav.querySelectorAll('a')];
+  const sections  = links.map(a => document.querySelector(a.getAttribute('href')));
+  const hero      = $('heroVisual');
+  const steps     = $('steps');
+  const stepEls   = [...steps.querySelectorAll('.step')];
+  const trackRail = MOTION;
+  const wide      = matchMedia('(min-width: 1081px)');
+  wide.addEventListener?.('change', () => { hero.style.transform = hero.style.opacity = ''; });
+  let current = null, ticking = false;
 
-  WATCHES.forEach((w, idx) => {
-    const y    = ytd(w);
-    const w_   = wow(w);
-    const hi   = Math.max(...w.medians);
-    const lo   = Math.min(...w.medians);
+  if (trackRail) steps.classList.add('is-tracking');
 
-    const card = document.createElement('div');
-    card.className = 'watch-card';
-    card.innerHTML = `
-      <div class="watch-card-head">
-        <div>
-          <div class="watch-card-title">${w.name}</div>
-          <div class="watch-card-ref">${w.ref}  ·  ${w.brand}</div>
-        </div>
-        <div class="watch-card-price">
-          <div class="watch-card-current">${fmt(w.medians[w.medians.length-1])}</div>
-          <div class="watch-card-ytd ${cls(y)}">${pct(y)} YTD</div>
-        </div>
-      </div>
-      <div class="watch-chart-body">
-        <div class="watch-chart-wrap" style="height:160px;">
-          <canvas id="wc${idx}"></canvas>
-        </div>
-      </div>
-      <div class="watch-card-stats">
-        <div class="watch-card-stat">
-          <div class="wcs-label">BASE</div>
-          <div class="wcs-value">${fmt(w.medians[0])}</div>
-        </div>
-        <div class="watch-card-stat">
-          <div class="wcs-label">WOW</div>
-          <div class="wcs-value ${cls(w_)}">${pct(w_)}</div>
-        </div>
-        <div class="watch-card-stat">
-          <div class="wcs-label">HIGH</div>
-          <div class="wcs-value">${fmt(hi)}</div>
-        </div>
-        <div class="watch-card-stat">
-          <div class="wcs-label">LOW</div>
-          <div class="wcs-value">${fmt(lo)}</div>
-        </div>
-      </div>`;
-    grid.appendChild(card);
+  function setActive(link) {
+    if (link === current) return;
+    current = link;
+    links.forEach(a => a === link ? a.setAttribute('aria-current', 'true') : a.removeAttribute('aria-current'));
+    positionIndicator();
+  }
+  function positionIndicator() {
+    if (!current || nav.offsetParent === null) return;
+    const x = current.offsetLeft + 12, w = current.offsetWidth - 24;
+    indicator.style.transform = `translateX(${x}px) scaleX(${w / 100})`;
+    indicator.style.opacity = 1;
+  }
 
-    requestAnimationFrame(() => {
-      const ctx  = document.getElementById(`wc${idx}`).getContext('2d');
-      const grad = ctx.createLinearGradient(0, 0, 0, 160);
-      grad.addColorStop(0, w.color + '28');
-      grad.addColorStop(1, w.color + '00');
+  function update() {
+    ticking = false;
+    const y   = scrollY;
+    const vh  = innerHeight;
+    const max = document.documentElement.scrollHeight - vh;
 
-      new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: DATES.map(d => d.replace(' 2025','').replace(' 2026','')),
-          datasets: [{
-            data:                w.medians,
-            borderColor:         w.color,
-            backgroundColor:     grad,
-            pointBackgroundColor:w.color,
-            pointBorderColor:    '#07090e',
-            pointBorderWidth:    2,
-            pointRadius:         4,
-            pointHoverRadius:    7,
-            borderWidth:         1.5,
-            fill:                true,
-            tension:             0.35,
-          }]
-        },
-        options: {
-          responsive:          true,
-          maintainAspectRatio: false,
-          interaction: { mode: 'index', intersect: false },
-          plugins: {
-            legend: { display: false },
-            tooltip: {
-              ...TOOLTIP_DEFAULTS,
-              callbacks: {
-                title: items => items[0].label,
-                label: ctx => {
-                  const v   = ctx.raw;
-                  const rel = ((v - w.medians[0]) / w.medians[0] * 100).toFixed(2);
-                  return [`${fmt(v)}  (${rel >= 0 ? '+' : ''}${rel}%)`];
-                },
-                labelColor: () => ({ backgroundColor: w.color, borderColor: w.color }),
-              }
-            }
-          },
-          scales: {
-            x: {
-              grid:  { color: 'rgba(28,45,64,0.6)' },
-              ticks: { color: '#3e5570', font: { size: 9 }, maxRotation: 0 }
-            },
-            y: {
-              grid:  { color: 'rgba(28,45,64,0.6)' },
-              ticks: {
-                color: '#3e5570',
-                font:  { size: 9 },
-                maxTicksLimit: 4,
-                callback: v => v >= 1000 ? '£' + (v/1000).toFixed(0) + 'k' : '£' + v,
-              }
-            }
-          }
-        }
+    progress.style.transform = `scaleX(${max > 0 ? Math.min(1, y / max) : 0})`;
+    header.classList.toggle('is-stuck', header.getBoundingClientRect().top <= 0 && y > 8);
+
+    // Section nav: last section whose top has passed the upper quarter.
+    const mark = header.offsetHeight + vh * 0.25;
+    let active = links[0];
+    sections.forEach((s, i) => { if (s && s.getBoundingClientRect().top <= mark) active = links[i]; });
+    if (y >= max - 4) active = links[links.length - 1];
+    setActive(active);
+
+    // Hero chart drifts slightly slower than the page as it leaves.
+    if (MOTION && wide.matches) {
+      const heroBottom = hero.getBoundingClientRect().bottom;
+      if (heroBottom > -200) {
+        const off = Math.min(y, vh);
+        hero.style.transform = `translate3d(0, ${(off * 0.1).toFixed(1)}px, 0)`;
+        hero.style.opacity   = Math.max(0.35, 1 - off / (vh * 1.4)).toFixed(3);
+      }
+    }
+
+    // Methodology rail fills as the list passes the reading line.
+    if (trackRail) {
+      const r = steps.getBoundingClientRect();
+      const p = Math.min(1, Math.max(0, (vh * 0.62 - r.top) / r.height));
+      steps.style.setProperty('--p', p.toFixed(4));
+      stepEls.forEach(el => {
+        const lit = (el.offsetTop + 18) / r.height <= p + 0.001;
+        el.classList.toggle('is-lit', lit);
       });
-    });
-  });
+    }
+  }
+
+  const request = () => { if (!ticking) { ticking = true; requestAnimationFrame(update); } };
+  addEventListener('scroll', request, { passive: true });
+  addEventListener('resize', () => { positionIndicator(); request(); });
+  document.fonts?.ready.then(() => { positionIndicator(); request(); });
+  update();
 })();
 </script>
 </body>
